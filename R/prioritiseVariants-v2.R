@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
 # test arguments: if not, return an error
-if (!length(args)%in%c(1,4,16)) 
+if (!length(args)%in%c(1,4,19)) 
 	{
 	stop("Incorrect number of arguments", call.=FALSE)
 	} else {
@@ -14,9 +14,9 @@ if (!length(args)%in%c(1,4,16))
 			args[2:4] = c("~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/genie_known_muts.bed",
 				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/civic_variants_03022017.tsv",
 				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/Sanger_drivers.csv")
-			} else if(length(args!=16)) {
+			} else if(length(args!=19)) {
 			# default column headings
-			args[5:18] = c(
+			args[5:19] = c(
 				"Chrom",				# chromosome
 				"Start_Position",			# start
 				"End_Position",				# end
@@ -30,7 +30,8 @@ if (!length(args)%in%c(1,4,16))
 				"Variant_Classification",		# variantClass
 				"Sample",				# patientCol
 				"Ref",					# reference
-				"Alt"					# alternative
+				"Alt",					# alternative
+				"Type"					# variant type
 				)
 			}
 		}
@@ -144,6 +145,7 @@ variantClassCol = args[15]
 patientCol = args[16]
 refCol = args[17]
 altCol = args[18]
+varantCol = args[19]
 # data files
 dataFile = args[1]
 genieFile = args[2]
@@ -166,10 +168,10 @@ sanger = read.csv(sangerFile,head=TRUE)
 # get unidirectional filter
 getMinStrand = function(data)
 	{
-	if(data$Type=="Sub")
+	if(data[,variantCol]=="Sub")
 		{
 		# substitutions - minimum of alternative
-		alt = data[,"Alt"]
+		alt = data[,altCol]
 		return(min(data[,paste0("F",alt,"Z.Tum")],data[,paste0("R",alt,"Z.Tum")]))
 		} else {
 		# indels - minimum of unique calls (Pindel and BWA)
@@ -182,11 +184,11 @@ uniCol = "unidirectionalFlag"
 # get germline filter
 getGermline = function(data,infoMut=c("PU.Norm","NU.Norm"),infoAll=c("PR.Norm","NR.Norm"))
 	{
-	if(data$Type=="Sub")
+	if(data[,variantCol]=="Sub")
 		{
 		# substitutions - normal alt / normal alt & ref
-		alt = data[,"Alt"]
-	        ref = data[,"Ref"]
+		alt = data[,altCol]
+	        ref = data[,refCol]
 		altN = sum(as.numeric(data[,paste0(c("F","R"),alt,"Z.Norm")]))
 		refN = sum(as.numeric(data[,paste0(c("F","R"),ref,"Z.Norm")]))
 		return(altN/(altN+refN))
