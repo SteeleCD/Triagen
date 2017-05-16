@@ -203,8 +203,10 @@ genieFile = args[2]
 civicFile = args[3]
 sangerFile = args[4]
 # load data
+print("read data")
 data = read.table(dataFile,head=TRUE,sep="\t",comment.char="@",quote="",as.is=TRUE)
 # load genie
+print("read genie")
 genie = read.csv(genieFile,head=FALSE,skip=10)
 # convert genie to 1-based
 genie[,2] = genie[,2]+1
@@ -212,11 +214,14 @@ colnames(genie)[1:3] = c("chrom","start","end")
 library(GenomicFeatures)
 genie = as(genie,"GRanges")
 # load civic
+print("read civic")
 civic = read.table(civicFile,head=TRUE,sep="\t",comment.char="@",quote="")
 civic = civic[which(civic$reference_bases!=""),]
 # load sanger
+print("read sanger")
 sanger = read.csv(sangerFile,head=TRUE)
 # get unidirectional filter
+print("set unidirectional filter")
 getMinStrand = function(data)
 	{
 	if(data$Type=="Sub")
@@ -233,6 +238,7 @@ unidirectionalFlag = sapply(1:nrow(data),FUN=function(x) getMinStrand(data[x,,dr
 data = cbind(data,unidirectionalFlag)
 uniCol = "unidirectionalFlag"
 # get germline filter
+print("set germline filter")
 getGermline = function(data,infoMut=c("PU.Norm","NU.Norm"),infoAll=c("PR.Norm","NR.Norm"))
 	{
 	if(data$Type=="Sub")

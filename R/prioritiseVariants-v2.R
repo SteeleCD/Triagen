@@ -1,7 +1,8 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
+expectedNargs = 22
 # test arguments: if not, return an error
-if (!length(args)%in%c(1,4,19)) 
+if (!length(args)%in%c(1,4,expectedNargs)) 
 	{
 	stop("Incorrect number of arguments", call.=FALSE)
 	} else {
@@ -14,9 +15,9 @@ if (!length(args)%in%c(1,4,19))
 			args[2:4] = c("~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/genie_known_muts.bed",
 				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/civic_variants_03022017.tsv",
 				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/Sanger_drivers.csv")
-			} else if(length(args)!=19) {
+			} else if(length(args)!=expectedNargs) {
 			# default column headings
-			args[5:19] = c(
+			args[5:expectedNargs] = c(
 				"Chrom",				# chromosome
 				"Start_Position",			# start
 				"End_Position",				# end
@@ -31,11 +32,17 @@ if (!length(args)%in%c(1,4,19))
 				"Sample",				# patientCol
 				"Ref",					# reference
 				"Alt",					# alternative
-				"Type"					# variant type
+				"Type",					# variant type
+				"Sub",					# substition name
+				TRUE,					# bool: run unidirectional filter
+				FALSE					# bool: run germline filter
 				)
 			}
 		}
-	
+
+# running options
+doUni = args[21]
+doGermline = args[22]
 
 classifyVariant = function(chrom, 	# chromosome
 			posStart, 	# start position
@@ -78,9 +85,20 @@ classifyVariant = function(chrom, 	# chromosome
 		}
 
 	# unidirectional
-	if(unidirectionalFilter==0)
+	if(doUni)
 		{
-		return(c("Unreliable","Unidirectional"))
+		if(unidirectionalFilter==0)
+			{
+			return(c("Unreliable","Unidirectional"))
+			}
+		}
+	# germline filter
+	if(doGermline)
+		{
+		if(germlineFilter>germlineThresh)
+			{
+			return(c("Unreliable","Germline"))
+			}
 		}
 	# silent mutations for driver analysis
 	if(variantClass=="Silent") return(c("silent","silent"))
@@ -131,6 +149,7 @@ triagePathPred = function(CADD,impact,clinsig,designation)
 	}
 
 # column names for columns of interest
+print("set arguments")
 chromCol = args[5]
 posStartCol = args[6]
 posEndCol = args[7]
@@ -146,14 +165,18 @@ patientCol = args[16]
 refCol = args[17]
 altCol = args[18]
 variantTypeCol = args[19]
+# variable names
+subName = args[20]
 # data files
 dataFile = args[1]
 genieFile = args[2]
 civicFile = args[3]
 sangerFile = args[4]
 # load data
+print("read data")
 data = read.table(dataFile,head=TRUE,sep="\t",comment.char="@",quote="",as.is=TRUE)
 # load genie
+print("read genie")
 genie = read.csv(genieFile,head=FALSE,skip=10)
 # convert genie to 1-based
 genie[,2] = genie[,2]+1
@@ -161,14 +184,17 @@ colnames(genie)[1:3] = c("chrom","start","end")
 library(GenomicFeatures)
 genie = as(genie,"GRanges")
 # load civic
+print("read civic")
 civic = read.table(civicFile,head=TRUE,sep="\t",comment.char="@",quote="")
 civic = civic[which(civic$reference_bases!=""),]
 # load sanger
+print("read sanger")
 sanger = read.csv(sangerFile,head=TRUE)
 # get unidirectional filter
+print("set unidirectional filter")
 getMinStrand = function(data)
 	{
-	if(data[,variantTypeCol]=="Sub")
+	if(data[,variantTypeCol]==subName)
 		{
 		# substitutions - minimum of alternative
 		alt = data[,altCol]
@@ -178,13 +204,20 @@ getMinStrand = function(data)
 		return(min(c(data$PU.Tum,data$NU.Tum)))
 		}
 	}
-unidirectionalFlag = sapply(1:nrow(data),FUN=function(x) getMinStrand(data[x,,drop=FALSE]))
+if(doUni)
+	{
+	unidirectionalFlag = sapply(1:nrow(data),FUN=function(x) getMinStrand(data[x,,drop=FALSE]))
+	} else {
+	unidirectionalFlag = rep(NA,nrow(data))
+	}
+
 data = cbind(data,unidirectionalFlag)
 uniCol = "unidirectionalFlag"
 # get germline filter
+print("set germline filter")
 getGermline = function(data,infoMut=c("PU.Norm","NU.Norm"),infoAll=c("PR.Norm","NR.Norm"))
 	{
-	if(data[,variantTypeCol]=="Sub")
+	if(data[,variantTypeCol]==subName)
 		{
 		# substitutions - normal alt / normal alt & ref
 		alt = data[,altCol]
@@ -197,7 +230,12 @@ getGermline = function(data,infoMut=c("PU.Norm","NU.Norm"),infoAll=c("PR.Norm","
 		return(sum(as.numeric(unlist(data[,infoMut])))/sum(as.numeric(unlist(data[,infoAll]))))
 		}
 	}
-germlineFlag = sapply(1:nrow(data),FUN=function(x) getGermline(data[x,,drop=FALSE]))
+if(doGermline)
+	{
+	germlineFlag = sapply(1:nrow(data),FUN=function(x) getGermline(data[x,,drop=FALSE]))
+	} else {
+	germlineFlag = rep(NA,times=nrow(data))
+	}
 data = cbind(data,germlineFlag)
 germCol = "germlineFlag"
 
@@ -219,14 +257,16 @@ prioritiseVariant = function(chrom,posStart,posEnd,
 			ref,
 			alt,
 			unidirectional,
-			germline)
+			germline,
+			patient)
 	{
 INDEX <<- INDEX+1
 	print(paste0(INDEX,". ",gene,":",variant,",",chrom,":",posStart,"-",posEnd))
 	# subset to this gene and variant
-	subData = data[which(data[,geneCol]==gene&data[,variantCol]==variant),]
+	varIndex = which(data[,geneCol]==gene&data[,variantCol]==variant)
+	subData = data[varIndex,]
 	# count number of patients with this variant
-	patientCount = length(unique(subData[,patientCol]))
+	patientCount = length(unique(patient[varIndex]))
 	# classify variant priority
 	priority = classifyVariant(
 		  chrom=chrom,
@@ -250,8 +290,18 @@ INDEX <<- INDEX+1
 	return(c(priority,patientCount))
 	}
 
+# set patient
+print("set patient if missing")
+if(!patientCol%in%colnames(data))
+	{
+	patient = rep("patient",nrow(data))
+	} else {
+	patient = data[,patientCol]
+	}
+
 toRun = 1:nrow(data)
 # perform classification
+print("run prioritisation")
 INDEX<<-1
 Priority = mapply(FUN=prioritiseVariant,
 		    chrom=data[toRun,chromCol],
@@ -268,7 +318,8 @@ Priority = mapply(FUN=prioritiseVariant,
 		    ref=data[toRun,refCol],
 		    alt=data[toRun,altCol],
 		    unidirectional=data[toRun,uniCol],
-		    germline=data[toRun,germCol]
+		    germline=data[toRun,germCol],
+		    patient=patient
                     )
 rownames(Priority) = c("priority","reason","patientCount")
 priorityTable = table(Priority["priority",])
@@ -278,6 +329,7 @@ reasonTable = table(Priority["reason",])
 data = cbind(data,t(Priority))
 
 # get out file name
+print("set file name")
 fileEnding = rev(strsplit(dataFile,split="[.]")[[1]])[1]
 outFileSave = rev(strsplit(dataFile,"/")[[1]])[1]
 outFile = gsub(outFileSave,"",dataFile)
@@ -292,6 +344,7 @@ if(chars[1]=="v")
 	}
 outFileEnd = strsplit(outFileEnd,"[.]")[[1]][1]
 # write results
+print("write results")
 write.table(data,
 	file=paste0(outFile,outFileEnd,"-withPriority.txt"),
 	quote=FALSE,row.names=FALSE,sep="\t")
