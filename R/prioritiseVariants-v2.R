@@ -14,7 +14,7 @@ if (!length(args)%in%c(1,4,19))
 			args[2:4] = c("~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/genie_known_muts.bed",
 				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/civic_variants_03022017.tsv",
 				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/Sanger_drivers.csv")
-			} else if(length(args!=19)) {
+			} else if(length(args)!=19) {
 			# default column headings
 			args[5:19] = c(
 				"Chrom",				# chromosome
@@ -145,7 +145,7 @@ variantClassCol = args[15]
 patientCol = args[16]
 refCol = args[17]
 altCol = args[18]
-varantCol = args[19]
+variantTypeCol = args[19]
 # data files
 dataFile = args[1]
 genieFile = args[2]
@@ -168,7 +168,7 @@ sanger = read.csv(sangerFile,head=TRUE)
 # get unidirectional filter
 getMinStrand = function(data)
 	{
-	if(data[,variantCol]=="Sub")
+	if(data[,variantTypeCol]=="Sub")
 		{
 		# substitutions - minimum of alternative
 		alt = data[,altCol]
@@ -184,7 +184,7 @@ uniCol = "unidirectionalFlag"
 # get germline filter
 getGermline = function(data,infoMut=c("PU.Norm","NU.Norm"),infoAll=c("PR.Norm","NR.Norm"))
 	{
-	if(data[,variantCol]=="Sub")
+	if(data[,variantTypeCol]=="Sub")
 		{
 		# substitutions - normal alt / normal alt & ref
 		alt = data[,altCol]
