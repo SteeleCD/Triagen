@@ -342,7 +342,6 @@ if(chars[1]=="v")
 	} else {
 	outFileEnd = outFileSave
 	}
-outFileEnd = strsplit(outFileEnd,"[.]")[[1]][1]
 # write results
 print("write results")
 write.table(data,
