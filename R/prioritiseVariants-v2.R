@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
-expectedNargs = 22
+expectedNargs = 23
 # test arguments: if not, return an error
 if (!length(args)%in%c(1,4,expectedNargs)) 
 	{
@@ -35,7 +35,8 @@ if (!length(args)%in%c(1,4,expectedNargs))
 				"Type",					# variant type
 				"Sub",					# substition name
 				TRUE,					# bool: run unidirectional filter
-				FALSE					# bool: run germline filter
+				FALSE,					# bool: run germline filter
+				TRUE					# bool: run CADD filter
 				)
 			}
 		}
@@ -43,6 +44,7 @@ if (!length(args)%in%c(1,4,expectedNargs))
 # running options
 doUni = args[21]
 doGermline = args[22]
+doCADD = args[23]
 
 classifyVariant = function(chrom, 	# chromosome
 			posStart, 	# start position
@@ -113,16 +115,16 @@ classifyVariant = function(chrom, 	# chromosome
 		if(tcgaCount==0)
 			{
 			category = triageCurrentObs(nSamples,nPatients)
-			category = triagePathPred(caddScore,impact,clinsig,category)
+			if(doCADD) category = triagePathPred(caddScore,impact,clinsig,category)
 			return(c(paste0("Novel_",category),"TCGA/CADD"))
 			} else {
 			category = triageCurrentObs(nSamples,nPatients)
-			category = triagePathPred(caddScore,impact,clinsig,category)
+			if(doCADD) category = triagePathPred(caddScore,impact,clinsig,category)
 			return(c(paste0("Observed_",category),"TCGA/CADD"))
 			}
 		} else {
 		category = triageCurrentObs(nSamples,nPatients)
-		category = triagePathPred(caddScore,impact,clinsig,category)
+		if(doCADD) category = triagePathPred(caddScore,impact,clinsig,category)
 		return(c(category,"CADD"))
 		}
 	# something has gone wrong if reach here
