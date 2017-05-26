@@ -1,12 +1,13 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
 expectedNargs = 23
+nArgs = length(args)
 # test arguments: if not, return an error
-if (!length(args)%in%c(1,4,expectedNargs)) 
+if (!nArgs%in%c(1,4,expectedNargs)) 
 	{
 	stop("Incorrect number of arguments", call.=FALSE)
 	} else {
-		if (length(args)==1) 
+		if(nArgs==1) 
 			{
 			#scriptDir=dirname(sys.frame(1)$ofile)
 #scriptDir <- getSrcDirectory(function(dummy) {dummy})
@@ -15,7 +16,9 @@ if (!length(args)%in%c(1,4,expectedNargs))
 			args[2:4] = c("~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/genie_known_muts.bed",
 				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/civic_variants_03022017.tsv",
 				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/Sanger_drivers.csv")
-			} else if(length(args)!=expectedNargs) {
+			} 
+		if(nArgs!=expectedNargs) 
+			{
 			# default column headings
 			args[5:expectedNargs] = c(
 				"Chrom",				# chromosome
