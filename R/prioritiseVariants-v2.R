@@ -147,7 +147,7 @@ triagePathPred = function(CADD,impact,clinsig,designation)
 	{
 	lowFlag = grepl("ultra",designation)	
 	# increase priority of high impact 
-	if(lowFlag&((CADD>30&!is.na(CADD))|impact=="HIGH"|clinsig=="pathogenic")) return(gsub("ultra_","",designation))
+	if(lowFlag&((CADD>30&!is.na(CADD))|impact=="HIGH"|(!is.na(clinsig)&clinsig=="pathogenic"))) return(gsub("ultra_","",designation))
 	# decrease priority of low impact 
 	if(!lowFlag&((CADD<20&!is.na(CADD))&impact%in%c("LOW","MODIFIER"))) return(paste0("ultra_",designation))
 	return(designation)
