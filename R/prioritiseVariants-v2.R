@@ -161,18 +161,18 @@ triagePathPred = function(CADD,impact,clinsig,designation)
 checkCol = function(data,column)
 	{
 	check = column%in%colnames(data)
-	if(!check) stop(paste0("Column ",column,"missing from data"))
-	if(all(is.na(data[,columns]))) print("Warning: all data values are NA in column",column)
+	if(!check) stop(paste0("Column ",column," missing from data"))
+	if(all(is.na(data[,column]))) print(paste0("Warning: all data values are NA in column ",column))
 	}
 
 # function to check files
 checkFile = function(fileName)
 	{
 	# check if file exists
-	if(!file.exists(fileName) stop(paste0("File ",fileName,"does not exist")))
+	if(!file.exists(fileName)) stop(paste0("File ",fileName," does not exist"))
 	# check if file is empty
 	info = file.info(fileName)
-	if(info$size==0) stop(paste0("File ",fileName,"is empty")))
+	if(info$size==0) stop(paste0("File ",fileName," is empty"))
 	}
 
 # get out filename
@@ -223,7 +223,8 @@ civicFile = args[3]
 sangerFile = args[4]
 
 # function to get germline filter
-getGermline = function(data,infoMut=c("PU.Norm","NU.Norm"),infoAll=c("PR.Norm","NR.Norm"))
+getGermline = function(data,infoMut=c("PU.Norm","NU.Norm"),infoAll=c("PR.Norm","NR.Norm"),
+		variantTypeCol,altCol,refCol,subName)
 	{
 	if(data[,variantTypeCol]==subName)
 		{
@@ -240,7 +241,7 @@ getGermline = function(data,infoMut=c("PU.Norm","NU.Norm"),infoAll=c("PR.Norm","
 	}
 
 # function to get unidirectional filter
-getMinStrand = function(data)
+getMinStrand = function(data,variantTypeCol,altCol,subName)
 	{
 	if(data[,variantTypeCol]==subName)
 		{
@@ -282,8 +283,8 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,chromCol,
 		variantClassCol,
 		refCol,
 		altCol,
-		variantTypeCol),FUN=function(x) checkCol(data,args[x]))
-	if(doCADD) checkCol[data,caddCol] 
+		variantTypeCol),FUN=function(x) checkCol(data,x))
+	if(doCADD) checkCol(data,caddCol) 
 	# load genie
 	print("read genie")
 	genie = read.csv(genieFile,head=FALSE,skip=10)
@@ -303,7 +304,7 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,chromCol,
 	print("set unidirectional filter")
 	if(doUni)
 		{
-		unidirectionalFlag = sapply(1:nrow(data),FUN=function(x) getMinStrand(data[x,,drop=FALSE]))
+		unidirectionalFlag = sapply(1:nrow(data),FUN=function(x) getMinStrand(data[x,,drop=FALSE],variantTypeCol=variantTypeCol,altCol=altCol,subName=subName))
 		} else {
 		unidirectionalFlag = rep(NA,nrow(data))
 		}
@@ -313,7 +314,12 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,chromCol,
 	print("set germline filter")
 	if(doGermline)
 		{
-		germlineFlag = sapply(1:nrow(data),FUN=function(x) getGermline(data[x,,drop=FALSE]))
+		germlineFlag = sapply(1:nrow(data),
+			FUN=function(x) getGermline(data[x,,drop=FALSE],
+						variantTypeCol=variantTypeCol,
+						altCol=altCol,
+						refCol=refCol,
+						subName=subName))
 		} else {
 		germlineFlag = rep(NA,times=nrow(data))
 		}
@@ -328,7 +334,9 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,chromCol,
 		patient = data[,patientCol]
 		}
 	# return data
-	return(list(data,civic,sanger,genie,uniCol,germCol))
+	return(list(data=data,civic=civic,sanger=sanger,
+		genie=genie,uniCol=uniCol,germCol=germCol,
+		patient=patient))
 	}
 
 
@@ -347,7 +355,11 @@ prioritiseVariant = function(chrom,posStart,posEnd,
 			germline,
 			patient,
 			geneCol,
-			variantCol
+			variantCol,
+			civic,
+			genie,
+			sanger,
+			data
 			)
 	{
 	INDEX <<- INDEX+1
@@ -395,30 +407,32 @@ runPriorities  = function(dataFile,genieFile,civicFile,sangerFile,
 		geneCol,variantCol,impactCol,caddCol,clinsigCol,variantClassCol,
 		patientCol,refCol,altCol,variantTypeCol,subName,
 		doUni,doGermline,doCADD)
+	DATA <<- data
 	# which variants to run
 	if(toRun=="all") toRun = 1:nrow(data$data)
-	toRun = 1:nrow(data)
 	# perform classification
 	print("run prioritisation")
 	INDEX<<-1
 	Priority = mapply(FUN=prioritiseVariant,
-		    chrom=data[toRun,chromCol],
-		    posStart=data[toRun,posStartCol],
-		    posEnd=data[toRun,posEndCol],
-                    gene=data[toRun,geneCol],
-                    variant=data[toRun,variantCol],
-                    tcgaCount=data[toRun,tcgaCountCol],
-                    exacCount=data[toRun,exacCountCol],
-		    impact=data[toRun,impactCol],
-		    cadd=data[toRun,caddCol],
-		    clinsig=data[toRun,clinsigCol],
-		    variantClass=data[toRun,variantClassCol],
-		    ref=data[toRun,refCol],
-		    alt=data[toRun,altCol],
-		    unidirectional=data[toRun,uniCol],
-		    germline=data[toRun,germCol],
-		    patient=patient,
-		    MoreArgs=list(geneCol=geneCol,variantCol=variantCol)
+		    chrom=data$data[toRun,chromCol],
+		    posStart=data$data[toRun,posStartCol],
+		    posEnd=data$data[toRun,posEndCol],
+                    gene=data$data[toRun,geneCol],
+                    variant=data$data[toRun,variantCol],
+                    tcgaCount=data$data[toRun,tcgaCountCol],
+                    exacCount=data$data[toRun,exacCountCol],
+		    impact=data$data[toRun,impactCol],
+		    cadd=data$data[toRun,caddCol],
+		    clinsig=data$data[toRun,clinsigCol],
+		    variantClass=data$data[toRun,variantClassCol],
+		    ref=data$data[toRun,refCol],
+		    alt=data$data[toRun,altCol],
+		    unidirectional=data$data[toRun,data$uniCol],
+		    germline=data$data[toRun,data$germCol],
+		    patient=data$patient,
+		    MoreArgs=list(geneCol=geneCol,variantCol=variantCol,
+				civic=data$civic,sanger=data$sanger,
+				genie=data$genie,data=data$data)
                     )
 	rownames(Priority) = c("priority","reason","patientCount")
 	priorityTable = table(Priority["priority",])
@@ -433,201 +447,55 @@ runPriorities  = function(dataFile,genieFile,civicFile,sangerFile,
 		write.table(data,
 			file=outFile,
 			quote=FALSE,row.names=FALSE,sep="\t")
-		} else {
-		return(data)
 		}
+	return(data)
 	}
 
-
-# load data
-print("read data")
-data = read.table(dataFile,head=TRUE,sep="\t",comment.char="@",quote="",as.is=TRUE)
-# check data columns
-print("check data")
-sapply(args[c(5:12,14:20)],FUN=function(x) checkCol(data,args[x]))
-if(doCADD) checkCol[data,args[x]] 
-# load genie
-print("read genie")
-genie = read.csv(genieFile,head=FALSE,skip=10)
-# convert genie to 1-based
-genie[,2] = genie[,2]+1
-colnames(genie)[1:3] = c("chrom","start","end")
-library(GenomicFeatures)
-genie = as(genie,"GRanges")
-# load civic
-print("read civic")
-civic = read.table(civicFile,head=TRUE,sep="\t",comment.char="@",quote="")
-civic = civic[which(civic$reference_bases!=""),]
-# load sanger
-print("read sanger")
-sanger = read.csv(sangerFile,head=TRUE)
-# get unidirectional filter
-print("set unidirectional filter")
-getMinStrand = function(data)
+# collate arguments into a list
+collateArgs = function(args)
 	{
-	if(data[,variantTypeCol]==subName)
-		{
-		# substitutions - minimum of alternative
-		alt = data[,altCol]
-		return(min(data[,paste0("F",alt,"Z.Tum")],data[,paste0("R",alt,"Z.Tum")]))
-		} else {
-		# indels - minimum of unique calls (Pindel and BWA)
-		return(min(c(data$PU.Tum,data$NU.Tum)))
-		}
+	print("set arguments")
+	args = list(
+		# column names
+		chromCol = args[5],
+		posStartCol = args[6],
+		posEndCol = args[7],
+		tcgaCountCol = args[8],
+		exacCountCol = args[9],
+		geneCol = args[10],
+		variantCol = args[11], 
+		impactCol = args[12],
+		caddCol = args[13],
+		clinsigCol = args[14],
+		variantClassCol = args[15],
+		patientCol = args[16],
+		refCol = args[17],
+		altCol = args[18],
+		variantTypeCol = args[19],
+		# variable names
+		subName = args[20],
+		# data files
+		dataFile = args[1],
+		genieFile = args[2],
+		civicFile = args[3],
+		sangerFile = args[4],
+		# running options
+		doUni = args[21],
+		doGermline = args[22],
+		doCADD = args[23]
+		)
+	return(args)
 	}
-if(doUni)
+
+# prioritise
+prioritiseVars = function(args)
 	{
-	unidirectionalFlag = sapply(1:nrow(data),FUN=function(x) getMinStrand(data[x,,drop=FALSE]))
-	} else {
-	unidirectionalFlag = rep(NA,nrow(data))
+	argsList = collateArgs(args)
+	do.call(runPriorities,argsList)
 	}
 
-data = cbind(data,unidirectionalFlag)
-uniCol = "unidirectionalFlag"
-# get germline filter
-print("set germline filter")
-getGermline = function(data,infoMut=c("PU.Norm","NU.Norm"),infoAll=c("PR.Norm","NR.Norm"))
-	{
-	if(data[,variantTypeCol]==subName)
-		{
-		# substitutions - normal alt / normal alt & ref
-		alt = data[,altCol]
-	        ref = data[,refCol]
-		altN = sum(as.numeric(data[,paste0(c("F","R"),alt,"Z.Norm")]))
-		refN = sum(as.numeric(data[,paste0(c("F","R"),ref,"Z.Norm")]))
-		return(altN/(altN+refN))
-		} else {
-		# indels - normal mutant / normal total
-		return(sum(as.numeric(unlist(data[,infoMut])))/sum(as.numeric(unlist(data[,infoAll]))))
-		}
-	}
-if(doGermline)
-	{
-	germlineFlag = sapply(1:nrow(data),FUN=function(x) getGermline(data[x,,drop=FALSE]))
-	} else {
-	germlineFlag = rep(NA,times=nrow(data))
-	}
-data = cbind(data,germlineFlag)
-germCol = "germlineFlag"
-
-
-
-
-
-
-
-# function to count the number of patients with the variant before prioritising
-prioritiseVariant = function(chrom,posStart,posEnd,
-			gene,variant,
-			tcgaCount=NULL,
-			exacCount,
-			impact,
-			cadd,
-			clinsig,
-			variantClass,
-			ref,
-			alt,
-			unidirectional,
-			germline,
-			patient)
-	{
-	INDEX <<- INDEX+1
-	print(paste0(INDEX,". ",gene,":",variant,",",chrom,":",posStart,"-",posEnd))
-	# subset to this gene and variant
-	varIndex = which(data[,geneCol]==gene&data[,variantCol]==variant)
-	subData = data[varIndex,]
-	# count number of patients with this variant
-	patientCount = length(unique(patient[varIndex]))
-	# classify variant priority
-	priority = classifyVariant(
-		  chrom=chrom,
-		  posStart=posStart,
-		  posEnd=posEnd,
-		  cDNA=variant,
-		  nPatients=patientCount,
-                  tcgaCount=tcgaCount,
-                  exacCount=exacCount,
-		  impact=impact,
-		  caddScore=cadd,
-		  genie=genie,
-		  clinsig=clinsig,
-		  variantClass=variantClass,
-		  sanger=sanger,
-		  civic=civic,
-		  ref=ref,
-		  alt=alt,
-		  unidirectionalFilter=unidirectional,
-		  germlineFilter=germline)
-	return(c(priority,patientCount))
-	}
-
-# set patient
-print("set patient if missing")
-if(!patientCol%in%colnames(data))
-	{
-	patient = rep("patient",nrow(data))
-	} else {
-	patient = data[,patientCol]
-	}
-
-toRun = 1:nrow(data)
-# perform classification
-print("run prioritisation")
-INDEX<<-1
-Priority = mapply(FUN=prioritiseVariant,
-		    chrom=data[toRun,chromCol],
-		    posStart=data[toRun,posStartCol],
-		    posEnd=data[toRun,posEndCol],
-                    gene=data[toRun,geneCol],
-                    variant=data[toRun,variantCol],
-                    tcgaCount=data[toRun,tcgaCountCol],
-                    exacCount=data[toRun,exacCountCol],
-		    impact=data[toRun,impactCol],
-		    cadd=data[toRun,caddCol],
-		    clinsig=data[toRun,clinsigCol],
-		    variantClass=data[toRun,variantClassCol],
-		    ref=data[toRun,refCol],
-		    alt=data[toRun,altCol],
-		    unidirectional=data[toRun,uniCol],
-		    germline=data[toRun,germCol],
-		    patient=patient
-                    )
-rownames(Priority) = c("priority","reason","patientCount")
-priorityTable = table(Priority["priority",])
-reasonTable = table(Priority["reason",])
-
-# combine data and results
-data = cbind(data,t(Priority))
-
-# get out file name
-print("set file name")
-fileEnding = rev(strsplit(dataFile,split="[.]")[[1]])[1]
-outFileSave = rev(strsplit(dataFile,"/")[[1]])[1]
-outFile = gsub(outFileSave,"",dataFile)
-# increment version
-chars = strsplit(outFileSave,split="")[[1]]
-if(chars[1]=="v") 
-	{
-	chars[2] = as.numeric(chars[2])+1
-	outFileEnd = paste0(chars,collapse="") 
-	} else {
-	outFileEnd = outFileSave
-	}
-# write results
-print("write results")
-write.table(data,
-	file=paste0(outFile,outFileEnd,"-withPriority.txt"),
-	quote=FALSE,row.names=FALSE,sep="\t")
-
-
-
-
-
-
-
-
-
-
+# actually run prioritisation
+prioritiseVars(args)
 
 
 
