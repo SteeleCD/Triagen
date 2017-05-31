@@ -431,6 +431,11 @@ collateArgs = function(args)
 	{
 	print("set arguments")
 	args = list(
+		# data files
+		dataFile = args[1],
+		genieFile = args[2],
+		civicFile = args[3],
+		sangerFile = args[4],
 		# column names
 		chromCol = args[5],
 		posStartCol = args[6],
@@ -449,11 +454,6 @@ collateArgs = function(args)
 		variantTypeCol = args[19],
 		# variable names
 		subName = args[20],
-		# data files
-		dataFile = args[1],
-		genieFile = args[2],
-		civicFile = args[3],
-		sangerFile = args[4],
 		# running options
 		doUni = args[21],
 		doGermline = args[22],
