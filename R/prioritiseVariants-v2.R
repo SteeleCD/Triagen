@@ -44,10 +44,7 @@ if (!nArgs%in%c(1,4,expectedNargs))
 			}
 		}
 
-# running options
-doUni = args[21]
-doGermline = args[22]
-doCADD = args[23]
+
 
 # function to prioritise variants based on a number of factors
 classifyVariant = function(chrom, 	# chromosome
@@ -67,7 +64,8 @@ classifyVariant = function(chrom, 	# chromosome
 			civic,		# civic databse
 			sanger,		# sanger database
 			unidirectionalFilter, # unidirectionalFilter
-			germlineFilter, germlineThresh=0.015)	# germlineFilter
+			germlineFilter, germlineThresh=0.015, # germlineFilter
+			doUni=TRUE,doGermline=FALSE,doCADD=TRUE) # running options
 	{
 	# civic
 	matchIndex = which(paste0(civic$chromosome)==paste0(chrom)&
@@ -195,32 +193,6 @@ getOutFile = function(filename)
 	# return filename
 	return(paste0(outFile,outFileEnd,"-withPriority.txt"))
 	}
-
-
-# column names for columns of interest
-print("set arguments")
-chromCol = args[5]
-posStartCol = args[6]
-posEndCol = args[7]
-tcgaCountCol = args[8]
-exacCountCol = args[9]
-geneCol = args[10]
-variantCol = args[11] 
-impactCol = args[12]
-caddCol = args[13]
-clinsigCol = args[14]
-variantClassCol = args[15]
-patientCol = args[16]
-refCol = args[17]
-altCol = args[18]
-variantTypeCol = args[19]
-# variable names
-subName = args[20]
-# data files
-dataFile = args[1]
-genieFile = args[2]
-civicFile = args[3]
-sangerFile = args[4]
 
 # function to get germline filter
 getGermline = function(data,infoMut=c("PU.Norm","NU.Norm"),infoAll=c("PR.Norm","NR.Norm"),
@@ -359,7 +331,8 @@ prioritiseVariant = function(chrom,posStart,posEnd,
 			civic,
 			genie,
 			sanger,
-			data
+			data,
+			doUni,doGermline,doCADD
 			)
 	{
 	INDEX <<- INDEX+1
@@ -388,7 +361,8 @@ prioritiseVariant = function(chrom,posStart,posEnd,
 		  ref=ref,
 		  alt=alt,
 		  unidirectionalFilter=unidirectional,
-		  germlineFilter=germline)
+		  germlineFilter=germline,
+		  doUni=doUni,doGermline=doGermline,doCADD=doCADD)
 	return(c(priority,patientCount))
 	}
 
@@ -432,7 +406,8 @@ runPriorities  = function(dataFile,genieFile,civicFile,sangerFile,
 		    patient=data$patient,
 		    MoreArgs=list(geneCol=geneCol,variantCol=variantCol,
 				civic=data$civic,sanger=data$sanger,
-				genie=data$genie,data=data$data)
+				genie=data$genie,data=data$data,
+				doUni=doUni,doGermline=doGermline,doCADD=doCADD)
                     )
 	rownames(Priority) = c("priority","reason","patientCount")
 	priorityTable = table(Priority["priority",])
