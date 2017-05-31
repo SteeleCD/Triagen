@@ -403,10 +403,10 @@ runPriorities  = function(dataFile,genieFile,civicFile,sangerFile,
 		    alt=data$data[toRun,altCol],
 		    unidirectional=data$data[toRun,data$uniCol],
 		    germline=data$data[toRun,data$germCol],
-		    patient=data$patient,
 		    MoreArgs=list(geneCol=geneCol,variantCol=variantCol,
 				civic=data$civic,sanger=data$sanger,
 				genie=data$genie,data=data$data,
+				patient=data$patient,
 				doUni=doUni,doGermline=doGermline,doCADD=doCADD)
                     )
 	rownames(Priority) = c("priority","reason","patientCount")
@@ -462,6 +462,8 @@ collateArgs = function(args)
 	return(args)
 	}
 
+
+
 # prioritise
 prioritiseVars = function(args)
 	{
@@ -469,9 +471,101 @@ prioritiseVars = function(args)
 	do.call(runPriorities,argsList)
 	}
 
+
+
+
+# function to run priorities in full (pipeline), but only once per variant
+runPrioritiesOnce  = function(dataFile,genieFile,civicFile,sangerFile,
+		chromCol,posStartCol,posEndCol,tcgaCountCol,exacCountCol,
+		geneCol,variantCol,impactCol,caddCol,clinsigCol,variantClassCol,
+		patientCol,refCol,altCol,variantTypeCol,subName,
+		doUni=TRUE,doGermline=FALSE,doCADD=TRUE,toRun="all",doWrite=TRUE,outFile=NULL)
+	{
+	# read and check data
+	data = setupPrioritise(dataFile,genieFile,civicFile,sangerFile,
+		chromCol,posStartCol,posEndCol,tcgaCountCol,exacCountCol,
+		geneCol,variantCol,impactCol,caddCol,clinsigCol,variantClassCol,
+		patientCol,refCol,altCol,variantTypeCol,subName,
+		doUni,doGermline,doCADD)
+	DATA <<- data
+	# which variants to run
+	if(toRun=="all") toRun = 1:nrow(data$data)
+	# setup so only run once for each variant
+	dictionary = paste0(data$data[toRun,chromCol],":",
+			data$data[toRun,posStartCol],":",
+			data$data[toRun,posEndCol],":",
+			data$data[toRun,refCol],":",
+			data$data[toRun,altCol],":",
+			data$data[toRun,geneCol],":",
+			data$data[toRun,variantCol]
+			)
+	dictUnique = unique(dictionary)
+	dictIndices = sapply(dictUnique,FUN=function(x) which(dictionary==x))
+	dictStarts = sapply(dictIndices,FUN=function(x) x[1])
+	rm(dictionary)
+	rm(dictUnique)
+	gc()
+	# perform classification once per variant
+	print("run prioritisation")
+	INDEX<<-1
+	Priority = mapply(FUN=prioritiseVariant,
+		    chrom=data$data[toRun[dictStarts],chromCol],
+		    posStart=data$data[toRun[dictStarts],posStartCol],
+		    posEnd=data$data[toRun[dictStarts],posEndCol],
+                    gene=data$data[toRun[dictStarts],geneCol],
+                    variant=data$data[toRun[dictStarts],variantCol],
+                    tcgaCount=data$data[toRun[dictStarts],tcgaCountCol],
+                    exacCount=data$data[toRun[dictStarts],exacCountCol],
+		    impact=data$data[toRun[dictStarts],impactCol],
+		    cadd=data$data[toRun[dictStarts],caddCol],
+		    clinsig=data$data[toRun[dictStarts],clinsigCol],
+		    variantClass=data$data[toRun[dictStarts],variantClassCol],
+		    ref=data$data[toRun[dictStarts],refCol],
+		    alt=data$data[toRun[dictStarts],altCol],
+		    unidirectional=data$data[toRun[dictStarts],data$uniCol],
+		    germline=data$data[toRun[dictStarts],data$germCol],
+		    MoreArgs=list(geneCol=geneCol,variantCol=variantCol,
+				civic=data$civic,sanger=data$sanger,
+				genie=data$genie,data=data$data,
+		    		patient=data$patient,
+				doUni=doUni,doGermline=doGermline,doCADD=doCADD)
+                    )
+	rownames(Priority) = c("priority","reason","patientCount")
+	# fill out object with duplicate variants
+	out = matrix(NA,ncol=3,nrow=length(toRun))
+	colnames(out) = c("priority","reason","patientCount")
+	for(i in 1:length(dictIndices))
+		{
+		for(j in 1:length(dictIndices[[i]]))
+			{
+			out[dictIndices[[i]][j],] = Priority[,i]
+			}
+		}
+	# tables
+	priorityTable = table(out[,"priority"])
+	reasonTable = table(out[,"reason"])
+	# combine data and results
+	data = cbind(data$data,out)
+	# write results
+	if(doWrite)
+		{
+		if(is.null(outFile)) outFile = getOutFile(dataFile)
+		print("write results")
+		write.table(data,
+			file=outFile,
+			quote=FALSE,row.names=FALSE,sep="\t")
+		}
+	return(data)
+	}
+
+# prioritise
+prioritiseVarsOnce = function(args)
+	{
+	argsList = collateArgs(args)
+	do.call(runPrioritiesOnce,argsList)
+	}
+
 # actually run prioritisation
-prioritiseVars(args)
-
-
+prioritiseVarsOnce(args)
 
 
