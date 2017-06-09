@@ -553,7 +553,7 @@ runPrioritiesOnce  = function(dataFile,genieFile,civicFile,sangerFile,
 		print("write results")
 		write.table(data,
 			file=outFile,
-			quote=FALSE,row.names=FALSE,sep="\t")
+			quote=FALSE,row.names=FALSE,sep="\t",na="")
 		}
 	return(data)
 	}
