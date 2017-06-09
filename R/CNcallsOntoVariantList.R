@@ -68,4 +68,4 @@ fileName = strsplit(fileName,split="[.]")[[1]][1]
 fileNameOut = paste0(fileName,"-withCNcalls.txt")
 outFile = gsub(fileName,fileNameOut,variantFile)
 # write out file
-write.table(variants,file="/media/grp11/CI_Pathology_Steele/projects/1_undiff/results/WGS/annot/combined/v2-16-03-2017/combined_sanger_vep_annot_no_first_variant_with_CADD-filteredNonCoding-withPriority-withCNcalls.txt",sep="\t",quote=FALSE,row.names=FALSE)
+write.table(variants,file="/media/grp11/CI_Pathology_Steele/projects/1_undiff/results/WGS/annot/combined/v2-16-03-2017/combined_sanger_vep_annot_no_first_variant_with_CADD-filteredNonCoding-withPriority-withCNcalls.txt",sep="\t",quote=FALSE,row.names=FALSE,na="")

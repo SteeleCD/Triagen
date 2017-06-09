@@ -52,11 +52,11 @@ if(fileEnding=="csv")
 	{
 	write.csv(data,
 		file=outFile,
-		quote=FALSE,row.names=FALSE)
+		quote=FALSE,row.names=FALSE,na="")
 	} else {
 	write.table(data,
 		file=outFile,
-		quote=FALSE,row.names=FALSE,sep="\t")
+		quote=FALSE,row.names=FALSE,sep="\t",na="")
 	}
 
 
