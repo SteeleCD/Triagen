@@ -1,24 +1,31 @@
 # Triagen
 Strategy for triaging genomic variants
 
+Depends on: VEP (https://github.com/Ensembl/ensembl-vep)
+
 Attempt to automatically triage variants into those that we think are importnat, and those that we think are artefact/unimportant.
 
 General workflow:
+	1 - Annotate variants with VEP
 
-	1 - subset to regions of interest
+	2 - Count occurences of variants in TCGA/ICGC
 
-	2 - remove variants that fail quality filters
+	3 - subset to regions of interest
 
-	3 - filter variants believed to be artefact (germline/unidirectional)
+	4 - remove variants that fail quality filters
 
-	4 - filter variants that are common in population (ExAC)
+	5 - filter variants believed to be artefact (germline/unidirectional)
 
-	5 - cross reference with previous datasets (Genie,CIVIC,Sanger)
+	6 - filter variants that are common in population (ExAC)
 
-	6 - cross reference with TCGA
+	7 - cross reference with previous datasets (Genie,CIVIC,Sanger)
 
-	7 - refine importance with predicted pathogenicity (CADD)
+	8 - cross reference with TCGA
 
-./R/filterNonCoding.R performs steps 1 and 2
+	9 - refine importance with predicted pathogenicity (CADD)
 
-./R/prioritiseVariants performs steps 3-7
+./py/run_new_anno performs steps 1 and 2.
+
+./R/filterNonCoding.R performs steps 3 and 4.
+
+./R/prioritiseVariants performs steps 5-9.
