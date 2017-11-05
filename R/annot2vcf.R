@@ -1,13 +1,20 @@
-annot2vcf = function(data,outFile,chromCol=5,posCol=6,idCol=4,refCol=7,altCol=8,qualCol=9,filterCol=10,split=1)
+annot2vcf = function(data,outFile,chromCol=5,posCol=6,idCol=NULL,refCol=7,altCol=8,qualCol=9,filterCol=10,split=1,idAddition="id")
 	{
+	if(is.null(idCol))
+		{
+		id = paste0(idAddition,1:nrow(data))
+		data = cbind(data,id)
+		idCol = ncol(data)
+		}
 	# create vcf
 	vcf = data[,c(chromCol,posCol,idCol,refCol,altCol,qualCol,filterCol)]
 	newHeads = c("#CHROM","POS","ID","REF","ALT","QUAL","FILTER")
 	vcf = rbind(newHeads,vcf)
 	# create vcf headers
+	filters = unique(unlist(sapply(data[,filterCol],FUN=function(x) strsplit(x,split=";")[[1]])))
 	headers = c('##fileformat=VCFv4.0',
 		paste0('##fileDate=',gsub("-","",Sys.Date())),
-		'##FILTER=<ID=PASS,Description="Passed variant">')
+		paste0('##FILTER=<ID=',filters,',Description="',filters,'">'))
 	headFillers = matrix("",ncol=ncol(vcf)-1,nrow=length(headers))
 	headers = cbind(headers,headFillers)
 	colnames(headers) = colnames(vcf)
