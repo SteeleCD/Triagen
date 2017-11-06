@@ -44,7 +44,7 @@ def read_input_file(maf, anno, patient_dict, outfile):
 		output.write('\n'),
 		for line in f:
 			count = {}
-			line = line.rstrip()
+			line = line.rstrip(' \n')
 			word = line.split('\t')
 			alt_col = head.index('Tumor_Seq_Allele2')
 			chr_col = head.index('Chromosome')
