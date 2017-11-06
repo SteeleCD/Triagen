@@ -148,9 +148,15 @@ triagePathPred = function(CADD,impact,clinsig,designation)
 	{
 	lowFlag = grepl("ultra",designation)	
 	# increase priority of high impact 
-	if(lowFlag&((CADD>30&!is.na(CADD))|impact=="HIGH"|(!is.na(clinsig)&clinsig=="pathogenic"))) return(gsub("ultra_","",designation))
+	if(lowFlag&((CADD>30&!is.na(CADD))|impact=="HIGH"|(!is.na(clinsig)&clinsig=="pathogenic")))
+		{
+		return(gsub("ultra_","",designation))
+		}
 	# decrease priority of low impact 
-	if(!lowFlag&((CADD<20&!is.na(CADD))&impact%in%c("LOW","MODIFIER"))) return(paste0("ultra_",designation))
+	if(!lowFlag&((CADD<20&!is.na(CADD))&impact%in%c("LOW","MODIFIER")))
+		{
+		return(paste0("ultra_",designation))
+		}
 	return(designation)
 	}
 
@@ -195,7 +201,7 @@ getOutFile = function(filename)
 	}
 
 # function to get germline filter
-getGermline = function(data,infoMut=c("PU.Norm","NU.Norm"),infoAll=c("PR.Norm","NR.Norm"),
+getGermlineSanger = function(data,infoMut=c("PU.Norm","NU.Norm"),infoAll=c("PR.Norm","NR.Norm"),
 		variantTypeCol,altCol,refCol,subName)
 	{
 	if(data[,variantTypeCol]==subName)
@@ -211,6 +217,7 @@ getGermline = function(data,infoMut=c("PU.Norm","NU.Norm"),infoAll=c("PR.Norm","
 		return(sum(as.numeric(unlist(data[,infoMut])))/sum(as.numeric(unlist(data[,infoAll]))))
 		}
 	}
+
 
 # function to get unidirectional filter
 getMinStrand = function(data,variantTypeCol,altCol,subName)
@@ -231,7 +238,7 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,chromCol,
 		posStartCol,posEndCol,tcgaCountCol,exacCountCol,geneCol,
 		variantCol,impactCol,caddCol,clinsigCol,variantClassCol,
 		patientCol,refCol,altCol,variantTypeCol,subName,
-		doUni=TRUE,doGermline=FALSE,doCADD=TRUE)
+		doUni=TRUE,doGermline=FALSE,doCADD=TRUE,germlineMeth="sanger",germlineCol=NA)
 	{	
 	# check input files
 	sapply(c(dataFile,
@@ -276,7 +283,12 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,chromCol,
 	print("set unidirectional filter")
 	if(doUni)
 		{
-		unidirectionalFlag = sapply(1:nrow(data),FUN=function(x) getMinStrand(data[x,,drop=FALSE],variantTypeCol=variantTypeCol,altCol=altCol,subName=subName))
+		unidirectionalFlag = sapply(1:nrow(data),FUN=function(x)
+			{
+			getMinStrand(data[x,,drop=FALSE],
+				variantTypeCol=variantTypeCol,
+				altCol=altCol,subName=subName)
+			})
 		} else {
 		unidirectionalFlag = rep(NA,nrow(data))
 		}
@@ -284,14 +296,25 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,chromCol,
 	uniCol = "unidirectionalFlag"
 	# get germline filter
 	print("set germline filter")
-	if(doGermline)
+	if(doGermline&)
 		{
-		germlineFlag = sapply(1:nrow(data),
-			FUN=function(x) getGermline(data[x,,drop=FALSE],
+		if(germlineMeth=="sanger")
+			{
+			germlineFlag = sapply(1:nrow(data),
+				FUN=function(x) getGermlineSanger(data[x,,drop=FALSE],
 						variantTypeCol=variantTypeCol,
 						altCol=altCol,
 						refCol=refCol,
 						subName=subName))
+			} else {
+			if(!is.na(germlineRefCountCol)&!is.na(germlineAltCountCol))
+				{
+				denom = (data[,germlineAltCountCol]+data[,germlineRefCountCol])
+				germlineFlag = data[,germlineAltCountCol]/denom
+				} else {
+				germlineFlag = rep(NA,times=nrow(data))
+				}
+			}
 		} else {
 		germlineFlag = rep(NA,times=nrow(data))
 		}
@@ -373,14 +396,16 @@ runPriorities  = function(dataFile,genieFile,civicFile,sangerFile,
 		chromCol,posStartCol,posEndCol,tcgaCountCol,exacCountCol,
 		geneCol,variantCol,impactCol,caddCol,clinsigCol,variantClassCol,
 		patientCol,refCol,altCol,variantTypeCol,subName,
-		doUni=TRUE,doGermline=FALSE,doCADD=TRUE,toRun="all",doWrite=TRUE)
+		doUni=TRUE,doGermline=FALSE,doCADD=TRUE,
+		germlineMeth="sanger",germlineRefCountCol=NA,germlineAltCountCol=NA,
+		toRun="all",doWrite=TRUE)
 	{
 	# read and check data
 	data = setupPrioritise(dataFile,genieFile,civicFile,sangerFile,
 		chromCol,posStartCol,posEndCol,tcgaCountCol,exacCountCol,
 		geneCol,variantCol,impactCol,caddCol,clinsigCol,variantClassCol,
 		patientCol,refCol,altCol,variantTypeCol,subName,
-		doUni,doGermline,doCADD)
+		doUni,doGermline,doCADD,germlineMeth,germlineRefCountCol,germlineAltCountCol)
 	DATA <<- data
 	# which variants to run
 	if(toRun=="all") toRun = 1:nrow(data$data)
@@ -457,7 +482,10 @@ collateArgs = function(args)
 		# running options
 		doUni = args[21],
 		doGermline = args[22],
-		doCADD = args[23]
+		doCADD = args[23],
+		germlineMeth = args[24],
+		germlineRefCountCol = args[25],
+		germlineAltCountCol = args[26]
 		)
 	return(args)
 	}
@@ -479,14 +507,16 @@ runPrioritiesOnce  = function(dataFile,genieFile,civicFile,sangerFile,
 		chromCol,posStartCol,posEndCol,tcgaCountCol,exacCountCol,
 		geneCol,variantCol,impactCol,caddCol,clinsigCol,variantClassCol,
 		patientCol,refCol,altCol,variantTypeCol,subName,
-		doUni=TRUE,doGermline=FALSE,doCADD=TRUE,toRun="all",doWrite=TRUE,outFile=NULL)
+		doUni=TRUE,doGermline=FALSE,doCADD=TRUE,
+		germlineMeth="sanger",germlineRefCountCol=NA,germlineAltCountCol=NA,
+		toRun="all",doWrite=TRUE,outFile=NULL)
 	{
 	# read and check data
 	data = setupPrioritise(dataFile,genieFile,civicFile,sangerFile,
 		chromCol,posStartCol,posEndCol,tcgaCountCol,exacCountCol,
 		geneCol,variantCol,impactCol,caddCol,clinsigCol,variantClassCol,
 		patientCol,refCol,altCol,variantTypeCol,subName,
-		doUni,doGermline,doCADD)
+		doUni,doGermline,doCADD,germlineMeth,germlineRefCountCol,germlineAltCountCol)
 	DATA <<- data
 	# which variants to run
 	if(toRun=="all") toRun = 1:nrow(data$data)

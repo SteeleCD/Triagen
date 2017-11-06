@@ -1,4 +1,4 @@
-annot2vcf = function(data,outFile,chromCol=5,posCol=6,idCol=NULL,refCol=7,altCol=8,qualCol=9,filterCol=10,split=1,idAddition="id")
+annot2vcf = function(data,outFile,chromCol=5,posCol=6,idCol=NULL,refCol=7,altCol=8,qualCol=9,filterCol=10,flankingCol="flanking_bps",split=1,idAddition="id")
 	{
 	if(is.null(idCol))
 		{
@@ -8,6 +8,24 @@ annot2vcf = function(data,outFile,chromCol=5,posCol=6,idCol=NULL,refCol=7,altCol
 		}
 	# create vcf
 	vcf = data[,c(chromCol,posCol,idCol,refCol,altCol,qualCol,filterCol)]
+	# deal with indels
+	indexDel = grep("-",vcf[,5])
+	if(length(indexDel)>0)
+		{
+		preceding = sapply(data[indexDel,flankingCol],FUN=function(x) strsplit(x,split="")[[1]][1])
+		vcf[indexDel,4] = paste0(preceding,vcf[indexDel,4])
+		vcf[indexDel,5] = preceding
+		vcf[indexDel,2] = vcf[indexDel,2]-1
+		}
+	indexIns = grep("-",vcf[,4])
+	if(length(indexIns)>0)
+		{
+		preceding = sapply(data[indexIns,flankingCol],FUN=function(x) strsplit(x,split="")[[1]][1])
+		vcf[indexIns,5] = paste0(preceding,vcf[indexIns,5])
+		vcf[indexIns,4] = preceding
+		vcf[indexIns,2] = vcf[indexIns,2]-1
+		}
+	# column headings
 	newHeads = c("#CHROM","POS","ID","REF","ALT","QUAL","FILTER")
 	vcf = rbind(newHeads,vcf)
 	# create vcf headers
