@@ -12,7 +12,7 @@ annot2vcf = function(data,outFile,chromCol=5,posCol=6,idCol=NULL,refCol=7,altCol
 	indexDel = grep("-",vcf[,5])
 	if(length(indexDel)>0)
 		{
-		preceding = sapply(data[indexDel,flankingCol],FUN=function(x) strsplit(x,split="")[[1]][1])
+		preceding = sapply(data[indexDel,flankingCol],FUN=function(x) strsplit(x,split="")[[1]][2])
 		vcf[indexDel,4] = paste0(preceding,vcf[indexDel,4])
 		vcf[indexDel,5] = preceding
 		vcf[indexDel,2] = vcf[indexDel,2]-1

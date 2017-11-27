@@ -1,9 +1,9 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
-expectedNargs = 23
+expectedNargs = 27
 nArgs = length(args)
 # test arguments: if not, return an error
-if (!nArgs%in%c(1,4,expectedNargs)) 
+if (!nArgs%in%c(1,5,expectedNargs)) 
 	{
 	stop("Incorrect number of arguments", call.=FALSE)
 	} else {
@@ -13,14 +13,15 @@ if (!nArgs%in%c(1,4,expectedNargs))
 #scriptDir <- getSrcDirectory(function(dummy) {dummy})
 #print(scriptDir)
 			#setwd(scriptDir)
-			args[2:4] = c("~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/genie_known_muts.bed",
-				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/civic_variants_03022017.tsv",
-				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/Sanger_drivers.csv")
+			args[2:5] = c("~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/genie_mutations_2.0.0_2017-11-27.txt",
+				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/civic_variants_2017-11-01.txt",
+				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/Sanger_drivers.csv",
+				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/mskcc_hotspots_2017-11-27.txt")
 			} 
 		if(nArgs!=expectedNargs) 
 			{
 			# default column headings
-			args[5:expectedNargs] = c(
+			args[6:expectedNargs] = c(
 				"Chrom",				# chromosome
 				"Start_Position",			# start
 				"End_Position",				# end
@@ -39,7 +40,10 @@ if (!nArgs%in%c(1,4,expectedNargs))
 				"Sub",					# substition name
 				TRUE,					# bool: run unidirectional filter
 				FALSE,					# bool: run germline filter
-				TRUE					# bool: run CADD filter
+				TRUE,					# bool: run CADD filter
+				"sanger",				# germline method
+				"n_ref_count",				# normal reference count
+				"n_alt_count"				# normal alternative count
 				)
 			}
 		}
@@ -65,7 +69,8 @@ classifyVariant = function(chrom, 	# chromosome
 			sanger,		# sanger database
 			unidirectionalFilter, # unidirectionalFilter
 			germlineFilter, germlineThresh=0.015, # germlineFilter
-			doUni=TRUE,doGermline=FALSE,doCADD=TRUE) # running options
+			doUni=TRUE,doGermline=FALSE,doCADD=TRUE, # running options
+			exacThresh=0.0004) # exac threshold
 	{
 	# civic
 	matchIndex = which(paste0(civic$chromosome)==paste0(chrom)&
@@ -99,15 +104,19 @@ classifyVariant = function(chrom, 	# chromosome
 	# germline filter
 	if(doGermline)
 		{
-		if(germlineFilter>germlineThresh)
+		print(germlineFilter)
+		if(!is.na(germlineFilter))
 			{
-			return(c("Unreliable","Germline"))
+			if(germlineFilter>germlineThresh)
+				{
+				return(c("Unreliable","Germline"))
+				}
 			}
 		}
 	# silent mutations for driver analysis
 	if(variantClass=="Silent") return(c("silent","silent"))
 	# exac
-	if(!is.na(exacCount)) 
+	if(!is.na(exacCount)&exacCount>exacThresh) 
 		{
 		return(c("Unreliable","ExAC"))
 		}
@@ -238,7 +247,8 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,chromCol,
 		posStartCol,posEndCol,tcgaCountCol,exacCountCol,geneCol,
 		variantCol,impactCol,caddCol,clinsigCol,variantClassCol,
 		patientCol,refCol,altCol,variantTypeCol,subName,
-		doUni=TRUE,doGermline=FALSE,doCADD=TRUE,germlineMeth="sanger",germlineCol=NA)
+		doUni=TRUE,doGermline=FALSE,doCADD=TRUE,
+		germlineMeth="sanger",germlineRefCountCol=NA,germlineAltCountCol=NA)
 	{	
 	# check input files
 	sapply(c(dataFile,
@@ -296,7 +306,7 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,chromCol,
 	uniCol = "unidirectionalFlag"
 	# get germline filter
 	print("set germline filter")
-	if(doGermline&)
+	if(doGermline)
 		{
 		if(germlineMeth=="sanger")
 			{
@@ -309,8 +319,8 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,chromCol,
 			} else {
 			if(!is.na(germlineRefCountCol)&!is.na(germlineAltCountCol))
 				{
-				denom = (data[,germlineAltCountCol]+data[,germlineRefCountCol])
-				germlineFlag = data[,germlineAltCountCol]/denom
+				denom = (as.numeric(data[,germlineAltCountCol])+as.numeric(data[,germlineRefCountCol]))
+				germlineFlag = as.numeric(data[,germlineAltCountCol])/denom
 				} else {
 				germlineFlag = rep(NA,times=nrow(data))
 				}
@@ -461,31 +471,32 @@ collateArgs = function(args)
 		genieFile = args[2],
 		civicFile = args[3],
 		sangerFile = args[4],
+		mskccFile = args[5],
 		# column names
-		chromCol = args[5],
-		posStartCol = args[6],
-		posEndCol = args[7],
-		tcgaCountCol = args[8],
-		exacCountCol = args[9],
-		geneCol = args[10],
-		variantCol = args[11], 
-		impactCol = args[12],
-		caddCol = args[13],
-		clinsigCol = args[14],
-		variantClassCol = args[15],
-		patientCol = args[16],
-		refCol = args[17],
-		altCol = args[18],
-		variantTypeCol = args[19],
+		chromCol = args[6],
+		posStartCol = args[7],
+		posEndCol = args[8],
+		tcgaCountCol = args[9],
+		exacCountCol = args[10],
+		geneCol = args[11],
+		variantCol = args[12], 
+		impactCol = args[13],
+		caddCol = args[14],
+		clinsigCol = args[15],
+		variantClassCol = args[16],
+		patientCol = args[17],
+		refCol = args[18],
+		altCol = args[19],
+		variantTypeCol = args[20],
 		# variable names
-		subName = args[20],
+		subName = args[21],
 		# running options
-		doUni = args[21],
-		doGermline = args[22],
-		doCADD = args[23],
-		germlineMeth = args[24],
-		germlineRefCountCol = args[25],
-		germlineAltCountCol = args[26]
+		doUni = args[22],
+		doGermline = args[23],
+		doCADD = args[24],
+		germlineMeth = args[25],
+		germlineRefCountCol = args[26],
+		germlineAltCountCol = args[27]
 		)
 	return(args)
 	}
