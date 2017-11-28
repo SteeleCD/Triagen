@@ -311,8 +311,10 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,bla
 	#genie = as(genie,"GRanges")
 	# load civic
 	print("read civic")
-	civic = read.table(civicFile,head=TRUE,sep="\t",comment.char="@",quote="")
-	civic = civic[which(civic$reference_bases!=""),]
+	civic = read.table(civicFile,head=TRUE,sep="\t",comment.char="@",quote="",as.is=TRUE)
+	civic = civic[which(civic$reference_bases!=""&civic$variant_bases!=""),]
+	civic$reference_bases[which(civic$reference_bases=="")] = "-"
+	civic$variant_bases[which(civic$variant_bases=="")] = "-"
 	# load sanger
 	print("read sanger")
 	sanger = read.csv(sangerFile,head=TRUE)
