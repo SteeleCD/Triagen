@@ -318,10 +318,10 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,bla
 	sanger = read.csv(sangerFile,head=TRUE)
 	# load mskcc
 	print("read mskcc")
-	mskcc = read.table(mskccFile,sep=TRUE,head=TRUE)
+	mskcc = read.table(mskccFile,sep="\t",head=TRUE)
 	# load blacklist
 	print("read blacklist")
-	blacklist = read.table(blacklistFile,sep=TRUE,head=FALSE)
+	blacklist = read.table(blacklistFile,sep="\t",head=FALSE)
 	colnames(blacklist)[1:3] = c("chrom","start","end")
 	library(GenomicFeatures)
 	blacklist = as(blacklist,"GRanges")
