@@ -1,9 +1,9 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
-expectedNargs = 27
+expectedNargs = 28
 nArgs = length(args)
 # test arguments: if not, return an error
-if (!nArgs%in%c(1,5,expectedNargs)) 
+if (!nArgs%in%c(1,6,expectedNargs)) 
 	{
 	stop("Incorrect number of arguments", call.=FALSE)
 	} else {
@@ -16,12 +16,13 @@ if (!nArgs%in%c(1,5,expectedNargs))
 			args[2:5] = c("~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/genie_mutations_2.0.0_2017-11-27.txt",
 				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/civic_variants_2017-11-01.txt",
 				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/Sanger_drivers.csv",
-				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/mskcc_hotspots_2017-11-27.txt")
+				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/mskcc_hotspots_2017-11-27.txt",
+				"~/Dropbox/PostDoc/Rlibs/Triagen/data/knownMuts/encode_blacklist_2017-11-27.bed.gz")
 			} 
 		if(nArgs!=expectedNargs) 
 			{
 			# default column headings
-			args[6:expectedNargs] = c(
+			args[7:expectedNargs] = c(
 				"Chrom",				# chromosome
 				"Start_Position",			# start
 				"End_Position",				# end
@@ -62,11 +63,13 @@ classifyVariant = function(chrom, 	# chromosome
 			exacCount, 	# count of variant in exac
 			impact, 	# VEP impact
 			caddScore, 	# CADD score
-			genie,		# genie hotspot mutations
 			clinsig,	# clinical significance
 			variantClass,	# variant classification
+			genie,		# genie hotspot mutations
 			civic,		# civic databse
 			sanger,		# sanger database
+			mskcc,		# memorial sloan kettering database
+			blacklist,	# encode blacklist regions 
 			unidirectionalFilter, # unidirectionalFilter
 			germlineFilter, germlineThresh=0.015, # germlineFilter
 			doUni=TRUE,doGermline=FALSE,doCADD=TRUE, # running options
@@ -85,14 +88,36 @@ classifyVariant = function(chrom, 	# chromosome
 			paste0(sanger$cDNA)==paste0(cDNA))
 	if(length(matchIndex)>0) return(c("High_confidence","Sanger"))
 	# genie
-	variant = data.frame(chrom=chrom,start=as.numeric(posStart),end=as.numeric(posEnd))
-	variant = as(variant,"GRanges")
-	overlaps = findOverlaps(genie,variant)
+	#variant = data.frame(chrom=chrom,start=as.numeric(posStart),end=as.numeric(posEnd))
+	#variant = as(variant,"GRanges")
+	#overlaps = findOverlaps(genie,variant)
+	overlaps = which(paste0(genie$Chromosome)==paste0(chrom)&
+			as.numeric(genie$Start_Position)==as.numeric(posStart)&
+			as.numeric(genie$End_Position)==as.numeric(posEnd)&
+			paste0(genie$Reference_Allele)==paste0(ref)&
+			paste0(genie$Tumor_Seq_Allele2)==paste0(alt))
 	if(length(overlaps)>0) 
 		{
 		return(c("High_confidence","Genie"))
 		}
-
+	# mskcc
+	overlaps = which(paste0(mskcc$Chromosome)==paste0(chrom)&
+			as.numeric(mskcc$Start_Position)==as.numeric(posStart)&
+			as.numeric(mskcc$End_Position)==as.numeric(posEnd)&
+			paste0(mskcc$Reference_Allele)==paste0(ref)&
+			paste0(mskcc$Tumor_Seq_Allele2)==paste0(alt))
+	if(length(overlaps)>0) 
+		{
+		return(c("High_confidence","MSKCC"))
+		}
+	# blacklist
+	variant = data.frame(chrom=paste0("chr",chrom),start=as.numeric(posStart),end=as.numeric(posEnd))
+	variant = as(variant,"GRanges")
+	overlaps = findOverlaps(blacklist,variant)
+	if(length(overlaps)>0) 
+		{
+		return(c("Unreliable","Encode_blacklist"))
+		}
 	# unidirectional
 	if(doUni)
 		{
@@ -242,8 +267,8 @@ getMinStrand = function(data,variantTypeCol,altCol,subName)
 		}
 	}
 
-# funciton to set up prioritise
-setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,chromCol,
+# function to set up prioritise
+setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,blacklistFile,chromCol,
 		posStartCol,posEndCol,tcgaCountCol,exacCountCol,geneCol,
 		variantCol,impactCol,caddCol,clinsigCol,variantClassCol,
 		patientCol,refCol,altCol,variantTypeCol,subName,
@@ -254,7 +279,9 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,chromCol,
 	sapply(c(dataFile,
 		genieFile,
 		civicFile,
-		sangerFile),FUN=checkFile)
+		sangerFile,
+		mskccFile,
+		blacklistFile),FUN=checkFile)
 	# load data
 	print("read data")
 	data = read.table(dataFile,head=TRUE,sep="\t",comment.char="@",quote="",as.is=TRUE)
@@ -278,10 +305,10 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,chromCol,
 	print("read genie")
 	genie = read.csv(genieFile,head=FALSE,skip=10)
 	# convert genie to 1-based
-	genie[,2] = genie[,2]+1
-	colnames(genie)[1:3] = c("chrom","start","end")
-	library(GenomicFeatures)
-	genie = as(genie,"GRanges")
+	#genie[,2] = genie[,2]+1
+	#colnames(genie)[1:3] = c("chrom","start","end")
+	#library(GenomicFeatures)
+	#genie = as(genie,"GRanges")
 	# load civic
 	print("read civic")
 	civic = read.table(civicFile,head=TRUE,sep="\t",comment.char="@",quote="")
@@ -289,6 +316,15 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,chromCol,
 	# load sanger
 	print("read sanger")
 	sanger = read.csv(sangerFile,head=TRUE)
+	# load mskcc
+	print("read mskcc")
+	mskcc = read.table(mskccFile,sep=TRUE,head=TRUE)
+	# load blacklist
+	print("read blacklist")
+	blacklist = read.table(blacklistFile,sep=TRUE,head=FALSE)
+	colnames(blacklist)[1:3] = c("chrom","start","end")
+	library(GenomicFeatures)
+	blacklist = as(blacklist,"GRanges")
 	# get unidirectional filter
 	print("set unidirectional filter")
 	if(doUni)
@@ -340,6 +376,7 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,chromCol,
 		}
 	# return data
 	return(list(data=data,civic=civic,sanger=sanger,
+		mskcc=mskcc,blacklist=blacklist,
 		genie=genie,uniCol=uniCol,germCol=germCol,
 		patient=patient))
 	}
@@ -364,6 +401,8 @@ prioritiseVariant = function(chrom,posStart,posEnd,
 			civic,
 			genie,
 			sanger,
+			mskcc,
+			blacklist,
 			data,
 			doUni,doGermline,doCADD
 			)
@@ -386,11 +425,13 @@ prioritiseVariant = function(chrom,posStart,posEnd,
                   exacCount=exacCount,
 		  impact=impact,
 		  caddScore=cadd,
-		  genie=genie,
 		  clinsig=clinsig,
 		  variantClass=variantClass,
+		  genie=genie,
 		  sanger=sanger,
 		  civic=civic,
+		  mskcc=mskcc,
+		  blacklist=blacklist,
 		  ref=ref,
 		  alt=alt,
 		  unidirectionalFilter=unidirectional,
@@ -402,7 +443,7 @@ prioritiseVariant = function(chrom,posStart,posEnd,
 
 
 # function to run priorities in full (pipeline)
-runPriorities  = function(dataFile,genieFile,civicFile,sangerFile,
+runPriorities  = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,blacklistFile,
 		chromCol,posStartCol,posEndCol,tcgaCountCol,exacCountCol,
 		geneCol,variantCol,impactCol,caddCol,clinsigCol,variantClassCol,
 		patientCol,refCol,altCol,variantTypeCol,subName,
@@ -411,7 +452,7 @@ runPriorities  = function(dataFile,genieFile,civicFile,sangerFile,
 		toRun="all",doWrite=TRUE)
 	{
 	# read and check data
-	data = setupPrioritise(dataFile,genieFile,civicFile,sangerFile,
+	data = setupPrioritise(dataFile,genieFile,civicFile,sangerFile,mskccFile,blacklistFile,
 		chromCol,posStartCol,posEndCol,tcgaCountCol,exacCountCol,
 		geneCol,variantCol,impactCol,caddCol,clinsigCol,variantClassCol,
 		patientCol,refCol,altCol,variantTypeCol,subName,
@@ -441,6 +482,7 @@ runPriorities  = function(dataFile,genieFile,civicFile,sangerFile,
 		    MoreArgs=list(geneCol=geneCol,variantCol=variantCol,
 				civic=data$civic,sanger=data$sanger,
 				genie=data$genie,data=data$data,
+				mskcc=data$mskcc,blacklist=data$blacklist,
 				patient=data$patient,
 				doUni=doUni,doGermline=doGermline,doCADD=doCADD)
                     )
@@ -472,31 +514,32 @@ collateArgs = function(args)
 		civicFile = args[3],
 		sangerFile = args[4],
 		mskccFile = args[5],
+		blacklistFile = args[6],
 		# column names
-		chromCol = args[6],
-		posStartCol = args[7],
-		posEndCol = args[8],
-		tcgaCountCol = args[9],
-		exacCountCol = args[10],
-		geneCol = args[11],
-		variantCol = args[12], 
-		impactCol = args[13],
-		caddCol = args[14],
-		clinsigCol = args[15],
-		variantClassCol = args[16],
-		patientCol = args[17],
-		refCol = args[18],
-		altCol = args[19],
-		variantTypeCol = args[20],
+		chromCol = args[7],
+		posStartCol = args[8],
+		posEndCol = args[9],
+		tcgaCountCol = args[10],
+		exacCountCol = args[11],
+		geneCol = args[12],
+		variantCol = args[13], 
+		impactCol = args[14],
+		caddCol = args[15],
+		clinsigCol = args[16],
+		variantClassCol = args[17],
+		patientCol = args[18],
+		refCol = args[19],
+		altCol = args[20],
+		variantTypeCol = args[21],
 		# variable names
-		subName = args[21],
+		subName = args[22],
 		# running options
-		doUni = args[22],
-		doGermline = args[23],
-		doCADD = args[24],
-		germlineMeth = args[25],
-		germlineRefCountCol = args[26],
-		germlineAltCountCol = args[27]
+		doUni = args[23],
+		doGermline = args[24],
+		doCADD = args[25],
+		germlineMeth = args[26],
+		germlineRefCountCol = args[27],
+		germlineAltCountCol = args[28]
 		)
 	return(args)
 	}
@@ -514,7 +557,7 @@ prioritiseVars = function(args)
 
 
 # function to run priorities in full (pipeline), but only once per variant
-runPrioritiesOnce  = function(dataFile,genieFile,civicFile,sangerFile,
+runPrioritiesOnce  = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,blacklistFile,
 		chromCol,posStartCol,posEndCol,tcgaCountCol,exacCountCol,
 		geneCol,variantCol,impactCol,caddCol,clinsigCol,variantClassCol,
 		patientCol,refCol,altCol,variantTypeCol,subName,
@@ -523,7 +566,7 @@ runPrioritiesOnce  = function(dataFile,genieFile,civicFile,sangerFile,
 		toRun="all",doWrite=TRUE,outFile=NULL)
 	{
 	# read and check data
-	data = setupPrioritise(dataFile,genieFile,civicFile,sangerFile,
+	data = setupPrioritise(dataFile,genieFile,civicFile,sangerFile,mskccFile,blacklistFile,
 		chromCol,posStartCol,posEndCol,tcgaCountCol,exacCountCol,
 		geneCol,variantCol,impactCol,caddCol,clinsigCol,variantClassCol,
 		patientCol,refCol,altCol,variantTypeCol,subName,
@@ -568,6 +611,7 @@ runPrioritiesOnce  = function(dataFile,genieFile,civicFile,sangerFile,
 		    MoreArgs=list(geneCol=geneCol,variantCol=variantCol,
 				civic=data$civic,sanger=data$sanger,
 				genie=data$genie,data=data$data,
+				mskcc=data$mskcc,blacklist=data$blacklist,
 		    		patient=data$patient,
 				doUni=doUni,doGermline=doGermline,doCADD=doCADD)
                     )
