@@ -84,7 +84,7 @@ classifyVariant = function(chrom, 	# chromosome
 	# mskcc
 	if(mskcc) return(c("High_confidence","MSKCC"))
 	# blacklist
-	if(length(overlaps)>0) return(c("Unreliable","Encode_blacklist"))
+	if(blacklist) return(c("Unreliable","Encode_blacklist"))
 	# unidirectional
 	if(doUni)
 		{
