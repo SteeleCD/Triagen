@@ -76,48 +76,15 @@ classifyVariant = function(chrom, 	# chromosome
 			exacThresh=0.0004) # exac threshold
 	{
 	# civic
-	matchIndex = which(paste0(civic$chromosome)==paste0(chrom)&
-			civic$start==posStart&
-			civic$stop==posEnd&
-			paste0(civic$reference_bases)==paste0(ref)&
-			paste0(civic$variant_bases)==paste0(alt))
-	if(length(matchIndex)>0) return(c("High_confidence","CIVIC"))
+	if(civic) return(c("High_confidence","CIVIC"))
 	# sanger
-	matchIndex = which(paste0(sanger$Chr)==paste0(chrom)&
-			sanger$Posn==posStart&
-			paste0(sanger$cDNA)==paste0(cDNA))
-	if(length(matchIndex)>0) return(c("High_confidence","Sanger"))
+	if(sanger) return(c("High_confidence","Sanger"))
 	# genie
-	#variant = data.frame(chrom=chrom,start=as.numeric(posStart),end=as.numeric(posEnd))
-	#variant = as(variant,"GRanges")
-	#overlaps = findOverlaps(genie,variant)
-	overlaps = which(paste0(genie$Chromosome)==paste0(chrom)&
-			as.numeric(genie$Start_Position)==as.numeric(posStart)&
-			as.numeric(genie$End_Position)==as.numeric(posEnd)&
-			paste0(genie$Reference_Allele)==paste0(ref)&
-			paste0(genie$Tumor_Seq_Allele2)==paste0(alt))
-	if(length(overlaps)>0) 
-		{
-		return(c("High_confidence","Genie"))
-		}
+	if(genie) return(c("High_confidence","Genie"))
 	# mskcc
-	overlaps = which(paste0(mskcc$Chromosome)==paste0(chrom)&
-			as.numeric(mskcc$Start_Position)==as.numeric(posStart)&
-			as.numeric(mskcc$End_Position)==as.numeric(posEnd)&
-			paste0(mskcc$Reference_Allele)==paste0(ref)&
-			paste0(mskcc$Tumor_Seq_Allele2)==paste0(alt))
-	if(length(overlaps)>0) 
-		{
-		return(c("High_confidence","MSKCC"))
-		}
+	if(mskcc) return(c("High_confidence","MSKCC"))
 	# blacklist
-	variant = data.frame(chrom=paste0("chr",chrom),start=as.numeric(posStart),end=as.numeric(posEnd))
-	variant = as(variant,"GRanges")
-	overlaps = findOverlaps(blacklist,variant)
-	if(length(overlaps)>0) 
-		{
-		return(c("Unreliable","Encode_blacklist"))
-		}
+	if(length(overlaps)>0) return(c("Unreliable","Encode_blacklist"))
 	# unidirectional
 	if(doUni)
 		{
@@ -265,7 +232,7 @@ getMinStrand = function(data,variantTypeCol,altCol,subName)
 		# indels - minimum of unique calls (Pindel and BWA)
 		return(min(c(data$PU.Tum,data$NU.Tum)))
 		}
-	}
+}
 
 # function to set up prioritise
 setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,blacklistFile,chromCol,
@@ -304,29 +271,45 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,bla
 	# load genie
 	print("read genie")
 	genie = read.csv(genieFile,head=FALSE,skip=10)
-	# convert genie to 1-based
-	#genie[,2] = genie[,2]+1
-	#colnames(genie)[1:3] = c("chrom","start","end")
-	#library(GenomicFeatures)
-	#genie = as(genie,"GRanges")
+	print("genie check")
+	dataCheck = paste(data[,chromCol],data[,posStartCol],data[,posEndCol],data[,refCol],data[,altCol],sep=":")
+	genieCheck = paste(genie$Chromosome,genie$Start_Position,genie$End_Position,genie$Reference_Allele,genie$Tumor_Seq_Allele2,sep=":")
+	genieMatch = dataCheck%in%genieCheck	
 	# load civic
 	print("read civic")
 	civic = read.table(civicFile,head=TRUE,sep="\t",comment.char="@",quote="",as.is=TRUE)
 	civic = civic[which(civic$reference_bases!=""&civic$variant_bases!=""),]
 	civic$reference_bases[which(civic$reference_bases=="")] = "-"
 	civic$variant_bases[which(civic$variant_bases=="")] = "-"
+	print("civic check")
+	dataCheck = paste(data[,chromCol],data[,posStartCol],data[,posEndCol],data[,refCol],data[,altCol],sep=":")
+	civicCheck = paste(civic$chromosome,civic$start,civic$stop,civic$reference_bases,civic$variant_bases,sep=":")
+	civicMatch = dataCheck%in%civicCheck
 	# load sanger
 	print("read sanger")
 	sanger = read.csv(sangerFile,head=TRUE)
+	print("sanger check")
+	dataCheck = paste(data[,chromCol],data[,posStartCol],data[,variantCol],sep=":")
+	sangerCheck = paste(sanger$Chr,sanger$Pos,sanger$cDNA,sep=":")
+	sangerMatch = dataCheck%in%sangerCheck
 	# load mskcc
 	print("read mskcc")
 	mskcc = read.table(mskccFile,sep="\t",head=TRUE)
+	print("mskcc check")
+	dataCheck = paste(data[,chromCol],data[,posStartCol],data[,posEndCol],data[,refCol],data[,altCol],sep=":")
+	mskccCheck = paste(mskcc$Chromosome,mskcc$Start_Position,mskcc$End_Position,mskcc$Reference_Allele,mskcc$Tumor_Seq_Allele2,sep=":")
+  mskccMatch = dataCheck%in%mskccCheck
 	# load blacklist
 	print("read blacklist")
 	blacklist = read.table(blacklistFile,sep="\t",head=FALSE)
 	colnames(blacklist)[1:3] = c("chrom","start","end")
 	library(GenomicFeatures)
 	blacklist = as(blacklist,"GRanges")
+	print("blacklist check")
+	variant = data.frame(chrom=paste0("chr",data[,chromCol]),start=as.numeric(data[,posStart]),end=as.numeric(data[,posEnd]))
+	variant = as(variant,"GRanges")
+	overlaps = findOverlaps(blacklist,variant)
+	blacklistMatch = sapply(1:row(data),FUN=function(x) x%in%overlaps@to)
 	# get unidirectional filter
 	print("set unidirectional filter")
 	if(doUni)
@@ -380,7 +363,10 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,bla
 	return(list(data=data,civic=civic,sanger=sanger,
 		mskcc=mskcc,blacklist=blacklist,
 		genie=genie,uniCol=uniCol,germCol=germCol,
-		patient=patient))
+		patient=patient,
+		civicMatch=civicMatch,sangerMatch=sangerMatch,
+		mskccMatch=mskccMatch,blacklistMatch=blacklistMatch,
+		genieMatch=genieMatch))
 	}
 
 
@@ -469,10 +455,10 @@ runPriorities  = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,blac
 		    chrom=data$data[toRun,chromCol],
 		    posStart=data$data[toRun,posStartCol],
 		    posEnd=data$data[toRun,posEndCol],
-                    gene=data$data[toRun,geneCol],
-                    variant=data$data[toRun,variantCol],
-                    tcgaCount=data$data[toRun,tcgaCountCol],
-                    exacCount=data$data[toRun,exacCountCol],
+        gene=data$data[toRun,geneCol],
+        variant=data$data[toRun,variantCol],
+        tcgaCount=data$data[toRun,tcgaCountCol],
+        exacCount=data$data[toRun,exacCountCol],
 		    impact=data$data[toRun,impactCol],
 		    cadd=data$data[toRun,caddCol],
 		    clinsig=data$data[toRun,clinsigCol],
@@ -481,12 +467,15 @@ runPriorities  = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,blac
 		    alt=data$data[toRun,altCol],
 		    unidirectional=data$data[toRun,data$uniCol],
 		    germline=data$data[toRun,data$germCol],
+		    civic=data$civicMatch,
+		    sanger=data$sangerMatch,
+		    genie=data$genieMatch,
+		    mskcc=data$mskccMatch,
+		    blacklist=data$blacklistMatch,
 		    MoreArgs=list(geneCol=geneCol,variantCol=variantCol,
-				civic=data$civic,sanger=data$sanger,
-				genie=data$genie,data=data$data,
-				mskcc=data$mskcc,blacklist=data$blacklist,
-				patient=data$patient,
-				doUni=doUni,doGermline=doGermline,doCADD=doCADD)
+          data=data$data,
+				  patient=data$patient,
+				  doUni=doUni,doGermline=doGermline,doCADD=doCADD)
                     )
 	rownames(Priority) = c("priority","reason","patientCount")
 	priorityTable = table(Priority["priority",])
@@ -556,103 +545,6 @@ prioritiseVars = function(args)
 	}
 
 
-
-
-# function to run priorities in full (pipeline), but only once per variant
-runPrioritiesOnce  = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,blacklistFile,
-		chromCol,posStartCol,posEndCol,tcgaCountCol,exacCountCol,
-		geneCol,variantCol,impactCol,caddCol,clinsigCol,variantClassCol,
-		patientCol,refCol,altCol,variantTypeCol,subName,
-		doUni=TRUE,doGermline=FALSE,doCADD=TRUE,
-		germlineMeth="sanger",germlineRefCountCol=NA,germlineAltCountCol=NA,
-		toRun="all",doWrite=TRUE,outFile=NULL)
-	{
-	# read and check data
-	data = setupPrioritise(dataFile,genieFile,civicFile,sangerFile,mskccFile,blacklistFile,
-		chromCol,posStartCol,posEndCol,tcgaCountCol,exacCountCol,
-		geneCol,variantCol,impactCol,caddCol,clinsigCol,variantClassCol,
-		patientCol,refCol,altCol,variantTypeCol,subName,
-		doUni,doGermline,doCADD,germlineMeth,germlineRefCountCol,germlineAltCountCol)
-	DATA <<- data
-	# which variants to run
-	if(toRun=="all") toRun = 1:nrow(data$data)
-	# setup so only run once for each variant
-	dictionary = paste0(data$data[toRun,chromCol],":",
-			data$data[toRun,posStartCol],":",
-			data$data[toRun,posEndCol],":",
-			data$data[toRun,refCol],":",
-			data$data[toRun,altCol],":",
-			data$data[toRun,geneCol],":",
-			data$data[toRun,variantCol]
-			)
-	dictUnique = unique(dictionary)
-	dictIndices = sapply(dictUnique,FUN=function(x) which(dictionary==x))
-	dictStarts = sapply(dictIndices,FUN=function(x) x[1])
-	rm(dictionary)
-	rm(dictUnique)
-	gc()
-	# perform classification once per variant
-	print("run prioritisation")
-	INDEX<<-1
-	Priority = mapply(FUN=prioritiseVariant,
-		    chrom=data$data[toRun[dictStarts],chromCol],
-		    posStart=data$data[toRun[dictStarts],posStartCol],
-		    posEnd=data$data[toRun[dictStarts],posEndCol],
-                    gene=data$data[toRun[dictStarts],geneCol],
-                    variant=data$data[toRun[dictStarts],variantCol],
-                    tcgaCount=data$data[toRun[dictStarts],tcgaCountCol],
-                    exacCount=data$data[toRun[dictStarts],exacCountCol],
-		    impact=data$data[toRun[dictStarts],impactCol],
-		    cadd=data$data[toRun[dictStarts],caddCol],
-		    clinsig=data$data[toRun[dictStarts],clinsigCol],
-		    variantClass=data$data[toRun[dictStarts],variantClassCol],
-		    ref=data$data[toRun[dictStarts],refCol],
-		    alt=data$data[toRun[dictStarts],altCol],
-		    unidirectional=data$data[toRun[dictStarts],data$uniCol],
-		    germline=data$data[toRun[dictStarts],data$germCol],
-		    MoreArgs=list(geneCol=geneCol,variantCol=variantCol,
-				civic=data$civic,sanger=data$sanger,
-				genie=data$genie,data=data$data,
-				mskcc=data$mskcc,blacklist=data$blacklist,
-		    		patient=data$patient,
-				doUni=doUni,doGermline=doGermline,doCADD=doCADD)
-                    )
-	rownames(Priority) = c("priority","reason","patientCount")
-	# fill out object with duplicate variants
-	out = matrix(NA,ncol=3,nrow=length(toRun))
-	colnames(out) = c("priority","reason","patientCount")
-	for(i in 1:length(dictIndices))
-		{
-		for(j in 1:length(dictIndices[[i]]))
-			{
-			out[dictIndices[[i]][j],] = Priority[,i]
-			}
-		}
-	# tables
-	priorityTable = table(out[,"priority"])
-	reasonTable = table(out[,"reason"])
-	# combine data and results
-	data = cbind(data$data,out)
-	# write results
-	if(doWrite)
-		{
-		if(is.null(outFile)) outFile = getOutFile(dataFile)
-		print("write results")
-		write.table(data,
-			file=outFile,
-			quote=FALSE,row.names=FALSE,sep="\t",na="")
-		}
-	return(data)
-	}
-
-# prioritise
-prioritiseVarsOnce = function(args)
-	{
-	argsList = collateArgs(args)
-	do.call(runPrioritiesOnce,argsList)
-	}
-
 # actually run prioritisation
-#prioritiseVarsOnce(args)
 prioritiseVars(args)
 
