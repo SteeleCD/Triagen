@@ -653,6 +653,6 @@ prioritiseVarsOnce = function(args)
 	}
 
 # actually run prioritisation
-prioritiseVarsOnce(args)
-
+#prioritiseVarsOnce(args)
+prioritiseVars(args)
 
