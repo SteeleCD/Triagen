@@ -306,7 +306,7 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,bla
 	library(GenomicFeatures)
 	blacklist = as(blacklist,"GRanges")
 	print("blacklist check")
-	variant = data.frame(chrom=paste0("chr",data[,chromCol]),start=as.numeric(data[,posStart]),end=as.numeric(data[,posEnd]))
+	variant = data.frame(chrom=paste0("chr",data[,chromCol]),start=as.numeric(data[,posStartCol]),end=as.numeric(data[,posEndCol]))
 	variant = as(variant,"GRanges")
 	overlaps = findOverlaps(blacklist,variant)
 	blacklistMatch = sapply(1:row(data),FUN=function(x) x%in%overlaps@to)
