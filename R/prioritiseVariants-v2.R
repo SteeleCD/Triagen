@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
-expectedNargs = 28
+expectedNargs = 29
 nArgs = length(args)
 # test arguments: if not, return an error
 if (!nArgs%in%c(1,6,expectedNargs)) 
@@ -44,7 +44,8 @@ if (!nArgs%in%c(1,6,expectedNargs))
 				TRUE,					# bool: run CADD filter
 				"sanger",				# germline method
 				"n_ref_count",				# normal reference count
-				"n_alt_count"				# normal alternative count
+				"n_alt_count",				# normal alternative count
+				TRUE					# doParallel
 				)
 			}
 		}
@@ -52,12 +53,7 @@ if (!nArgs%in%c(1,6,expectedNargs))
 
 
 # function to prioritise variants based on a number of factors
-classifyVariant = function(chrom, 	# chromosome
-			posStart, 	# start position
-			posEnd, 	# end position
-			ref,		# ref seq
-			alt,		# alt seq
-			cDNA,		# cDNA for variant
+classifyVariant = function(
 			nPatients, 	# count of variant in patients
 			tcgaCount=NULL, # count of variant in TCGA and ICGC
 			exacCount, 	# count of variant in exac
@@ -251,8 +247,6 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,bla
 	# load data
 	print("read data")
 	data = read.table(dataFile,head=TRUE,sep="\t",comment.char="@",quote="",as.is=TRUE)
-	# count number of patients with this variant
-	patientCount = length(unique(patient[varIndex]))
 	# check data columns
 	print("check data")
 	sapply(c(chromCol,
@@ -377,16 +371,13 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,bla
 
 
 # function to count the number of patients with the variant before prioritising
-prioritiseVariant = function(chrom,posStart,posEnd,
-			gene,variant,
+prioritiseVariant = function(
 			tcgaCount=NULL,
 			exacCount,
 			impact,
 			cadd,
 			clinsig,
 			variantClass,
-			ref,
-			alt,
 			unidirectional,
 			germline,
 			civic,
@@ -399,13 +390,9 @@ prioritiseVariant = function(chrom,posStart,posEnd,
 			)
 	{
 	INDEX <<- INDEX+1
-	print(paste0(INDEX,". ",gene,":",variant,",",chrom,":",posStart,"-",posEnd))
+	print(paste0(INDEX,". ",variantClass,":",patientCount))
 	# classify variant priority
 	priority = classifyVariant(
-		  chrom=chrom,
-		  posStart=posStart,
-		  posEnd=posEnd,
-		  cDNA=variant,
 		  nPatients=patientCount,
                   tcgaCount=tcgaCount,
                   exacCount=exacCount,
@@ -418,8 +405,6 @@ prioritiseVariant = function(chrom,posStart,posEnd,
 		  civic=civic,
 		  mskcc=mskcc,
 		  blacklist=blacklist,
-		  ref=ref,
-		  alt=alt,
 		  unidirectionalFilter=unidirectional,
 		  germlineFilter=germline,
 		  doUni=doUni,doGermline=doGermline,doCADD=doCADD)
@@ -435,7 +420,7 @@ runPriorities  = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,blac
 		patientCol,refCol,altCol,variantTypeCol,subName,
 		doUni=TRUE,doGermline=FALSE,doCADD=TRUE,
 		germlineMeth="sanger",germlineRefCountCol=NA,germlineAltCountCol=NA,
-		toRun="all",doWrite=TRUE)
+		toRun="all",doWrite=TRUE,doParallel=TRUE)
 	{
 	# read and check data
 	data = setupPrioritise(dataFile,genieFile,civicFile,sangerFile,mskccFile,blacklistFile,
@@ -449,20 +434,15 @@ runPriorities  = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,blac
 	# perform classification
 	print("run prioritisation")
 	INDEX<<-1
-	Priority = mapply(FUN=prioritiseVariant,
-		    chrom=data$data[toRun,chromCol],
-		    posStart=data$data[toRun,posStartCol],
-		    posEnd=data$data[toRun,posEndCol],
-        gene=data$data[toRun,geneCol],
-        variant=data$data[toRun,variantCol],
-        tcgaCount=data$data[toRun,tcgaCountCol],
-        exacCount=data$data[toRun,exacCountCol],
+	if(!doParallel)
+		{
+		Priority = mapply(FUN=prioritiseVariant,
+		    tcgaCount=data$data[toRun,tcgaCountCol],
+		    exacCount=data$data[toRun,exacCountCol],
 		    impact=data$data[toRun,impactCol],
 		    cadd=data$data[toRun,caddCol],
 		    clinsig=data$data[toRun,clinsigCol],
 		    variantClass=data$data[toRun,variantClassCol],
-		    ref=data$data[toRun,refCol],
-		    alt=data$data[toRun,altCol],
 		    unidirectional=data$data[toRun,data$uniCol],
 		    germline=data$data[toRun,data$germCol],
 		    civic=data$civicMatch,
@@ -473,6 +453,27 @@ runPriorities  = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,blac
 		    patientCount=data$patientCounts,
 		    MoreArgs=list(doUni=doUni,doGermline=doGermline,doCADD=doCADD)
                     )
+		} else {
+		Priority = mapply(FUN=prioritiseVariant,
+		    tcgaCount=data$data[toRun,tcgaCountCol],
+		    exacCount=data$data[toRun,exacCountCol],
+		    impact=data$data[toRun,impactCol],
+		    cadd=data$data[toRun,caddCol],
+		    clinsig=data$data[toRun,clinsigCol],
+		    variantClass=data$data[toRun,variantClassCol],
+		    unidirectional=data$data[toRun,data$uniCol],
+		    germline=data$data[toRun,data$germCol],
+		    civic=data$civicMatch,
+		    sanger=data$sangerMatch,
+		    genie=data$genieMatch,
+		    mskcc=data$mskccMatch,
+		    blacklist=data$blacklistMatch,
+		    patientCount=data$patientCounts,
+		    MoreArgs=list(doUni=doUni,doGermline=doGermline,doCADD=doCADD),
+		    mc.cores=detectCores()
+                    )
+
+		}
 	rownames(Priority) = c("priority","reason","patientCount")
 	priorityTable = table(Priority["priority",])
 	reasonTable = table(Priority["reason",])
@@ -526,7 +527,8 @@ collateArgs = function(args)
 		doCADD = args[25],
 		germlineMeth = args[26],
 		germlineRefCountCol = args[27],
-		germlineAltCountCol = args[28]
+		germlineAltCountCol = args[28],
+		doParallel = args[29]
 		)
 	return(args)
 	}
