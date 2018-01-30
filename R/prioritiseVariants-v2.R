@@ -454,7 +454,8 @@ runPriorities  = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,blac
 		    MoreArgs=list(doUni=doUni,doGermline=doGermline,doCADD=doCADD)
                     )
 		} else {
-		Priority = mapply(FUN=prioritiseVariant,
+		require(parallel)
+		Priority = mcmapply(FUN=prioritiseVariant,
 		    tcgaCount=data$data[toRun,tcgaCountCol],
 		    exacCount=data$data[toRun,exacCountCol],
 		    impact=data$data[toRun,impactCol],
