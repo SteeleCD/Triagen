@@ -528,7 +528,7 @@ collateArgs = function(args)
 		germlineMeth = args[26],
 		germlineRefCountCol = args[27],
 		germlineAltCountCol = args[28],
-		doParallel = args[29]
+		doParallel = as.logical(args[29])
 		)
 	return(args)
 	}
