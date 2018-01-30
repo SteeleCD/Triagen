@@ -96,7 +96,6 @@ classifyVariant = function(chrom, 	# chromosome
 	# germline filter
 	if(doGermline)
 		{
-		print(germlineFilter)
 		if(!is.na(germlineFilter))
 			{
 			if(germlineFilter>germlineThresh)
@@ -252,6 +251,8 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,bla
 	# load data
 	print("read data")
 	data = read.table(dataFile,head=TRUE,sep="\t",comment.char="@",quote="",as.is=TRUE)
+	# count number of patients with this variant
+	patientCount = length(unique(patient[varIndex]))
 	# check data columns
 	print("check data")
 	sapply(c(chromCol,
@@ -282,9 +283,14 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,bla
 	civic$reference_bases[which(civic$reference_bases=="")] = "-"
 	civic$variant_bases[which(civic$variant_bases=="")] = "-"
 	print("civic check")
-	dataCheck = paste(data[,chromCol],data[,posStartCol],data[,posEndCol],data[,refCol],data[,altCol],sep=":")
 	civicCheck = paste(civic$chromosome,civic$start,civic$stop,civic$reference_bases,civic$variant_bases,sep=":")
 	civicMatch = dataCheck%in%civicCheck
+	# load mskcc
+	print("read mskcc")
+	mskcc = read.table(mskccFile,sep="\t",head=TRUE)
+	print("mskcc check")
+	mskccCheck = paste(mskcc$Chromosome,mskcc$Start_Position,mskcc$End_Position,mskcc$Reference_Allele,mskcc$Tumor_Seq_Allele2,sep=":")
+  mskccMatch = dataCheck%in%mskccCheck
 	# load sanger
 	print("read sanger")
 	sanger = read.csv(sangerFile,head=TRUE)
@@ -292,13 +298,6 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,bla
 	dataCheck = paste(data[,chromCol],data[,posStartCol],data[,variantCol],sep=":")
 	sangerCheck = paste(sanger$Chr,sanger$Pos,sanger$cDNA,sep=":")
 	sangerMatch = dataCheck%in%sangerCheck
-	# load mskcc
-	print("read mskcc")
-	mskcc = read.table(mskccFile,sep="\t",head=TRUE)
-	print("mskcc check")
-	dataCheck = paste(data[,chromCol],data[,posStartCol],data[,posEndCol],data[,refCol],data[,altCol],sep=":")
-	mskccCheck = paste(mskcc$Chromosome,mskcc$Start_Position,mskcc$End_Position,mskcc$Reference_Allele,mskcc$Tumor_Seq_Allele2,sep=":")
-  mskccMatch = dataCheck%in%mskccCheck
 	# load blacklist
 	print("read blacklist")
 	blacklist = read.table(blacklistFile,sep="\t",head=FALSE)
@@ -359,6 +358,13 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,bla
 		} else {
 		patient = data[,patientCol]
 		}
+	# count number of patients with each variant
+	print("count patients")
+	variants = paste(data[,geneCol],data[,variantCol],sep=":")
+	varTable = table(variants,patient)
+	varTable[which(varTable>0)] = 1
+	varTable = rowSums(varTable)
+	patientCounts = varTable[variants]
 	# return data
 	return(list(data=data,civic=civic,sanger=sanger,
 		mskcc=mskcc,blacklist=blacklist,
@@ -366,7 +372,7 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,bla
 		patient=patient,
 		civicMatch=civicMatch,sangerMatch=sangerMatch,
 		mskccMatch=mskccMatch,blacklistMatch=blacklistMatch,
-		genieMatch=genieMatch))
+		genieMatch=genieMatch,patientCounts=patientCounts))
 	}
 
 
@@ -383,25 +389,17 @@ prioritiseVariant = function(chrom,posStart,posEnd,
 			alt,
 			unidirectional,
 			germline,
-			patient,
-			geneCol,
-			variantCol,
 			civic,
 			genie,
 			sanger,
 			mskcc,
 			blacklist,
-			data,
-			doUni,doGermline,doCADD
+			doUni,doGermline,doCADD,
+			patientCount
 			)
 	{
 	INDEX <<- INDEX+1
 	print(paste0(INDEX,". ",gene,":",variant,",",chrom,":",posStart,"-",posEnd))
-	# subset to this gene and variant
-	varIndex = which(data[,geneCol]==gene&data[,variantCol]==variant)
-	subData = data[varIndex,]
-	# count number of patients with this variant
-	patientCount = length(unique(patient[varIndex]))
 	# classify variant priority
 	priority = classifyVariant(
 		  chrom=chrom,
@@ -472,10 +470,8 @@ runPriorities  = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,blac
 		    genie=data$genieMatch,
 		    mskcc=data$mskccMatch,
 		    blacklist=data$blacklistMatch,
-		    MoreArgs=list(geneCol=geneCol,variantCol=variantCol,
-          data=data$data,
-				  patient=data$patient,
-				  doUni=doUni,doGermline=doGermline,doCADD=doCADD)
+		    patientCount=data$patientCounts,
+		    MoreArgs=list(doUni=doUni,doGermline=doGermline,doCADD=doCADD)
                     )
 	rownames(Priority) = c("priority","reason","patientCount")
 	priorityTable = table(Priority["priority",])
