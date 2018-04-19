@@ -302,7 +302,7 @@ setupPrioritise = function(dataFile,genieFile,civicFile,sangerFile,mskccFile,bla
 	variant = data.frame(chrom=paste0("chr",data[,chromCol]),start=as.numeric(data[,posStartCol]),end=as.numeric(data[,posEndCol]))
 	variant = as(variant,"GRanges")
 	overlaps = findOverlaps(blacklist,variant)
-	blacklistMatch = sapply(1:row(data),FUN=function(x) x%in%overlaps@to)
+	blacklistMatch = sapply(1:nrow(data),FUN=function(x) x%in%overlaps@to)
 	# get unidirectional filter
 	print("set unidirectional filter")
 	if(doUni)
